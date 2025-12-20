@@ -378,6 +378,9 @@ export const { use: useMarked, provider: MarkedProvider } = createSimpleContext(
   name: "Marked",
   init: () => {
     return marked.use(
+      {
+        gfm: true, // Enable GitHub Flavored Markdown including tables
+      },
       markedShiki({
         async highlight(code, lang) {
           const highlighter = await getSharedHighlighter({ themes: ["OpenCode"], langs: [] })
