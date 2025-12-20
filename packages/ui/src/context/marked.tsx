@@ -1,4 +1,4 @@
-import { marked } from "marked"
+import { Marked } from "marked"
 import markedShiki from "marked-shiki"
 import { bundledLanguages, type BundledLanguage } from "shiki"
 import { createSimpleContext } from "./helper"
@@ -377,7 +377,12 @@ registerCustomTheme("OpenCode", () => {
 export const { use: useMarked, provider: MarkedProvider } = createSimpleContext({
   name: "Marked",
   init: () => {
-    return marked.use(
+    const marked = new Marked(
+      {
+        gfm: true,
+        breaks: false,
+        pedantic: false,
+      },
       markedShiki({
         async highlight(code, lang) {
           const highlighter = await getSharedHighlighter({ themes: ["OpenCode"], langs: [] })
@@ -395,5 +400,6 @@ export const { use: useMarked, provider: MarkedProvider } = createSimpleContext(
         },
       }),
     )
+    return marked
   },
 })

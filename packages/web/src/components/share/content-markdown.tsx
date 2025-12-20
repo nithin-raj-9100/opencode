@@ -1,4 +1,4 @@
-import { marked } from "marked"
+import { Marked } from "marked"
 import { codeToHtml } from "shiki"
 import markedShiki from "marked-shiki"
 import { createOverflow } from "./common"
@@ -7,7 +7,12 @@ import { createResource, createSignal } from "solid-js"
 import { transformerNotationDiff } from "@shikijs/transformers"
 import style from "./content-markdown.module.css"
 
-const markedWithShiki = marked.use(
+const markedWithShiki = new Marked(
+  {
+    gfm: true,
+    breaks: false,
+    pedantic: false,
+  },
   markedShiki({
     highlight(code, lang) {
       return codeToHtml(code, {
