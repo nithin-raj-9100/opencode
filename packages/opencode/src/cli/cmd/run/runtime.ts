@@ -251,7 +251,7 @@ async function runInteractiveRuntime(input: RunRuntimeInput, deps: RunRuntimeDep
         directory: ctx.directory,
         findFiles: (query) =>
           ctx.sdk.find
-            .files({ query, directory: ctx.directory })
+            .files({ query, directory: ctx.directory, limit: 64 })
             .then((x) => x.data ?? [])
             .catch(() => []),
         agents: [],

@@ -55,6 +55,15 @@ type PromptOption = Auto | SlashOption
 
 type MenuMode = false | "mention" | "slash"
 
+type FileCacheEntry = {
+  query: string
+  items: string[]
+  complete: boolean
+}
+
+const FILE_SEARCH_LIMIT = 64
+const FILE_CACHE_LIMIT = 32
+
 type PromptInput = {
   directory: string
   findFiles: (query: string) => Promise<string[]>
@@ -137,6 +146,39 @@ function extractLineRange(input: string) {
   const start = Number(match[1])
   const end = match[2] && start < Number(match[2]) ? Number(match[2]) : undefined
   return { base, line: { start, end } }
+}
+
+function filterCachedFiles(cache: Map<string, FileCacheEntry>, query: string) {
+  let entry: FileCacheEntry | undefined
+  for (const item of cache.values()) {
+    if (!item.complete || query.length < item.query.length || !query.startsWith(item.query)) {
+      continue
+    }
+
+    if (!entry || item.query.length > entry.query.length) {
+      entry = item
+    }
+  }
+  if (!entry || !entry.complete || query.length < entry.query.length || !query.startsWith(entry.query)) {
+    return
+  }
+
+  if (query === entry.query) {
+    return entry.items
+  }
+
+  return fuzzysort.go(query, entry.items, { limit: FILE_SEARCH_LIMIT }).map((item) => item.target)
+}
+
+function rememberFileSearch(cache: Map<string, FileCacheEntry>, entry: FileCacheEntry) {
+  cache.delete(entry.query)
+  cache.set(entry.query, entry)
+  const overflow = cache.size - FILE_CACHE_LIMIT
+  if (overflow > 0) {
+    for (const query of [...cache.keys()].slice(0, overflow)) {
+      cache.delete(query)
+    }
+  }
 }
 
 function slashHead(text: string) {
@@ -303,6 +345,9 @@ export function createPromptState(input: PromptInput): PromptState {
   let type = 0
   let parts: Mention[] = []
   let marks = new Map<number, number>()
+  let fileSearchSeq = 0
+  let fileSearchOptions: Auto[] = []
+  const fileCache = new Map<string, FileCacheEntry>()
 
   const [mode, setMode] = createSignal<MenuMode>(false)
   const [at, setAt] = createSignal(0)
@@ -361,13 +406,26 @@ export function createPromptState(input: PromptInput): PromptState {
   const [files] = createResource(
     query,
     async (value) => {
+      const seq = ++fileSearchSeq
       if (!visible() || mode() !== "mention") {
+        fileSearchOptions = []
         return []
       }
 
       const next = extractLineRange(value)
-      const list = await input.findFiles(next.base)
-      return list.map((item): Auto => {
+      const cached = filterCachedFiles(fileCache, next.base)
+      const list = cached ?? (await input.findFiles(next.base))
+      if (seq !== fileSearchSeq) {
+        return fileSearchOptions
+      }
+      if (cached === undefined) {
+        rememberFileSearch(fileCache, {
+          query: next.base,
+          items: list,
+          complete: list.length < FILE_SEARCH_LIMIT,
+        })
+      }
+      const options = list.map((item): Auto => {
         const url = pathToFileURL(path.resolve(input.directory, item))
         let filename = item
         if (next.line && !item.endsWith("/")) {
@@ -400,6 +458,8 @@ export function createPromptState(input: PromptInput): PromptState {
           },
         }
       })
+      fileSearchOptions = options
+      return options
     },
     { initialValue: [] as Auto[] },
   )

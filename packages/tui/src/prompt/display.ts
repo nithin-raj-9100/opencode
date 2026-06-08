@@ -1,10 +1,14 @@
 const graphemes = new Intl.Segmenter(undefined, { granularity: "grapheme" })
 
+function segmentWidth(value: string) {
+  return value === "\n" ? 1 : Bun.stringWidth(value)
+}
+
 export function promptOffsetWidth(value: string) {
   let width = 0
   for (const part of graphemes.segment(value)) {
     // Textarea offsets count newlines as one position; Bun.stringWidth counts them as zero.
-    width += part.segment === "\n" ? 1 : Bun.stringWidth(part.segment)
+    width += segmentWidth(part.segment)
   }
   return width
 }
@@ -14,7 +18,7 @@ function displayOffsetIndex(value: string, offset: number) {
 
   let width = 0
   for (const part of graphemes.segment(value)) {
-    const next = width + promptOffsetWidth(part.segment)
+    const next = width + segmentWidth(part.segment)
     if (next > offset) return part.index
     width = next
   }
@@ -29,20 +33,33 @@ export function displaySlice(value: string, start = 0, end = promptOffsetWidth(v
 export function displayCharAt(value: string, offset: number) {
   let width = 0
   for (const part of graphemes.segment(value)) {
-    const next = width + promptOffsetWidth(part.segment)
+    const next = width + segmentWidth(part.segment)
     if (offset === width || offset < next) return part.segment
     width = next
   }
 }
 
-export function mentionTriggerIndex(value: string, offset = promptOffsetWidth(value)) {
-  const text = displaySlice(value, 0, offset)
-  const index = text.lastIndexOf("@")
-  if (index === -1) return
+export function mentionTriggerIndex(value: string, offset?: number) {
+  const limit = offset ?? Number.POSITIVE_INFINITY
+  let width = 0
+  let index: number | undefined
+  let before: string | undefined
+  let queryHasWhitespace = false
+  for (const part of graphemes.segment(value)) {
+    const next = width + segmentWidth(part.segment)
+    if (next > limit) break
 
-  const before = index === 0 ? undefined : text[index - 1]
-  const query = text.slice(index)
-  if ((before === undefined || /\s/.test(before)) && !/\s/.test(query)) {
-    return promptOffsetWidth(text.slice(0, index))
+    if (part.segment === "@") {
+      index = width
+      before = part.index === 0 ? undefined : value[part.index - 1]
+      queryHasWhitespace = false
+    } else if (index !== undefined && /\s/.test(part.segment)) {
+      queryHasWhitespace = true
+    }
+    width = next
+  }
+
+  if (index !== undefined && (before === undefined || /\s/.test(before)) && !queryHasWhitespace) {
+    return index
   }
 }
