@@ -1,3 +1,4 @@
+import crypto from "crypto"
 import path from "path"
 import { onMount } from "solid-js"
 import { createStore, produce, unwrap } from "solid-js/store"
@@ -50,7 +51,8 @@ export const { use: usePromptHistory, provider: PromptHistoryProvider } = create
   name: "PromptHistory",
   init: () => {
     const paths = useTuiPaths()
-    const historyPath = path.join(paths.state, "prompt-history.jsonl")
+    const dirHash = crypto.createHash("sha256").update(paths.cwd).digest("hex").slice(0, 12)
+    const historyPath = path.join(paths.state, `prompt-history-${dirHash}.jsonl`)
     onMount(async () => {
       const lines = parsePromptHistory(await readText(historyPath).catch(() => ""))
       setStore("history", lines)
