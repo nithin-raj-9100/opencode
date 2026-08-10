@@ -37,6 +37,8 @@ import { SessionRevert } from "./session/revert"
 import { Revert } from "@opencode-ai/schema/revert"
 import { FSUtil } from "./fs-util"
 import { SessionDurable } from "@opencode-ai/schema/durable-event-manifest"
+import { SessionPeer } from "./session/peer"
+import { Config } from "./config"
 
 export const RevertState = Revert.State
 export type RevertState = Revert.State
@@ -168,6 +170,14 @@ export interface Interface {
   readonly active: Effect.Effect<ReadonlySet<SessionSchema.ID>>
   readonly resume: (sessionID: SessionSchema.ID) => Effect.Effect<void, NotFoundError | SessionRunner.RunError>
   readonly interrupt: (sessionID: SessionSchema.ID) => Effect.Effect<void>
+  readonly peers: {
+    readonly list: (sessionID: SessionSchema.ID) => Effect.Effect<ReadonlyArray<SessionPeer.Info>, NotFoundError>
+    readonly send: (input: {
+      sessionID: SessionSchema.ID
+      target: string
+      text: string
+    }) => Effect.Effect<SessionPeer.Message, NotFoundError | SessionPeer.SendError>
+  }
   readonly revert: {
     readonly stage: (input: {
       sessionID: SessionSchema.ID
@@ -191,6 +201,7 @@ const layer = Layer.effect(
     const execution = yield* SessionExecution.Service
     const store = yield* SessionStore.Service
     const locations = yield* LocationServiceMap.Service
+    const peers = yield* SessionPeer.Service
     const decodeMessage = Schema.decodeUnknownEffect(SessionMessage.Message)
     const isDurableSessionEvent = Schema.is(SessionEvent.Durable)
     const decode = (row: typeof SessionMessageTable.$inferSelect) =>
@@ -263,6 +274,24 @@ const layer = Layer.effect(
       get: Effect.fn("V2Session.get")(function* (sessionID) {
         const session = yield* store.get(sessionID)
         if (!session) return yield* new NotFoundError({ sessionID })
+        yield* peers.activate(session, (message) =>
+          Effect.gen(function* () {
+            const inbound = yield* Config.Service.use((config) =>
+              config.entries().pipe(Effect.map((entries) => Config.latest(entries, "cross_session")?.inbound)),
+            ).pipe(Effect.provide(locations.get(session.location)))
+            if (inbound === "refuse") return
+            const prompt = Prompt.make({ text: message.text, peer: message.sender })
+            const admitted = yield* SessionInput.admit(db, events, {
+              id: SessionMessage.ID.make(message.id),
+              sessionID: session.id,
+              prompt,
+              delivery: "steer",
+            })
+            if (!SessionInput.equivalent(admitted, { sessionID: session.id, prompt, delivery: "steer" }))
+              yield* Effect.die(`Conflicting peer message: ${message.id}`)
+            yield* execution.wake(session.id)
+          }),
+        )
         return session
       }),
       list: Effect.fn("V2Session.list")(function* (input = {}) {
@@ -430,6 +459,20 @@ const layer = Layer.effect(
       interrupt: Effect.fn("V2Session.interrupt")((sessionID) =>
         Effect.uninterruptible(execution.interrupt(sessionID)),
       ),
+      peers: {
+        list: Effect.fn("V2Session.peers.list")(function* (sessionID) {
+          yield* result.get(sessionID)
+          return yield* peers.list(sessionID)
+        }),
+        send: Effect.fn("V2Session.peers.send")(function* (input) {
+          yield* result.get(input.sessionID)
+          return yield* peers.send({
+            senderSessionID: input.sessionID,
+            target: input.target,
+            text: input.text,
+          })
+        }),
+      },
       revert: {
         stage: Effect.fn("V2Session.revert.stage")(function* (input) {
           const session = yield* result.get(input.sessionID)
@@ -482,5 +525,6 @@ export const node = makeGlobalNode({
     SessionStore.node,
     LocationServiceMap.node,
     SessionProjector.node,
+    SessionPeer.node,
   ],
 })

@@ -13,6 +13,10 @@ import type {
   SessionsGetOutput,
   SessionsSwitchAgentInput,
   SessionsSwitchAgentOutput,
+  SessionsPeerListInput,
+  SessionsPeerListOutput,
+  SessionsPeerSendInput,
+  SessionsPeerSendOutput,
   SessionsSwitchModelInput,
   SessionsSwitchModelOutput,
   SessionsPromptInput,
@@ -355,6 +359,29 @@ export function make(options: ClientOptions) {
           },
           requestOptions,
         ),
+      peerList: (input: SessionsPeerListInput, requestOptions?: RequestOptions) =>
+        request<{ readonly data: SessionsPeerListOutput }>(
+          {
+            method: "GET",
+            path: `/api/session/${encodeURIComponent(input.sessionID)}/peer`,
+            successStatus: 200,
+            declaredStatuses: [404, 400, 401],
+            empty: false,
+          },
+          requestOptions,
+        ).then((value) => value.data),
+      peerSend: (input: SessionsPeerSendInput, requestOptions?: RequestOptions) =>
+        request<{ readonly data: SessionsPeerSendOutput }>(
+          {
+            method: "POST",
+            path: `/api/session/${encodeURIComponent(input.sessionID)}/peer`,
+            body: { target: input["target"], text: input["text"] },
+            successStatus: 200,
+            declaredStatuses: [400, 404, 503, 401],
+            empty: false,
+          },
+          requestOptions,
+        ).then((value) => value.data),
       switchModel: (input: SessionsSwitchModelInput, requestOptions?: RequestOptions) =>
         request<SessionsSwitchModelOutput>(
           {

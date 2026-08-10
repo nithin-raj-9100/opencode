@@ -6,6 +6,7 @@ import { SessionsCursor } from "@opencode-ai/protocol/groups/session"
 import {
   ConflictError,
   InvalidCursorError,
+  InvalidRequestError,
   MessageNotFoundError,
   ServiceUnavailableError,
   SessionNotFoundError,
@@ -118,6 +119,59 @@ export const SessionHandler = HttpApiBuilder.group(Api, "server.session", (handl
             ),
           )
           return HttpApiSchema.NoContent.make()
+        }),
+      )
+      .handle(
+        "session.peerList",
+        Effect.fn(function* (ctx) {
+          return {
+            data: yield* session.peers.list(ctx.params.sessionID).pipe(
+              Effect.catchTag(
+                "Session.NotFoundError",
+                (error) =>
+                  new SessionNotFoundError({
+                    sessionID: error.sessionID,
+                    message: `Session not found: ${error.sessionID}`,
+                  }),
+              ),
+            ),
+          }
+        }),
+      )
+      .handle(
+        "session.peerSend",
+        Effect.fn(function* (ctx) {
+          return {
+            data: yield* session.peers.send({ sessionID: ctx.params.sessionID, ...ctx.payload }).pipe(
+              Effect.catchTag(
+                "Session.NotFoundError",
+                (error) =>
+                  new SessionNotFoundError({
+                    sessionID: error.sessionID,
+                    message: `Session not found: ${error.sessionID}`,
+                  }),
+              ),
+              Effect.catchTag(
+                "SessionPeer.NotFoundError",
+                (error) => new InvalidRequestError({ message: `Peer session not found: ${error.target}` }),
+              ),
+              Effect.catchTag(
+                "SessionPeer.AmbiguousError",
+                (error) =>
+                  new InvalidRequestError({
+                    message: `Peer target is ambiguous; use one of these refs: ${error.matches.join(", ")}`,
+                  }),
+              ),
+              Effect.catchTag(
+                "SessionPeer.QueueFullError",
+                (error) =>
+                  new ServiceUnavailableError({
+                    message: `Peer inbox is full (${error.limit} messages)`,
+                    service: "session.peer",
+                  }),
+              ),
+            ),
+          }
         }),
       )
       .handle(

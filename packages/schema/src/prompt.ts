@@ -1,6 +1,7 @@
 import { Schema } from "effect"
 import { optional } from "./schema"
 import { statics } from "./schema"
+import { SessionPeer } from "./session-peer"
 
 export interface Source extends Schema.Schema.Type<typeof Source> {}
 export const Source = Schema.Struct({
@@ -42,6 +43,7 @@ export const Prompt = Schema.Struct({
   text: Schema.String,
   files: Schema.Array(FileAttachment).pipe(optional),
   agents: Schema.Array(AgentAttachment).pipe(optional),
+  peer: SessionPeer.Source.pipe(optional),
 })
   .annotate({ identifier: "Prompt" })
   .pipe(

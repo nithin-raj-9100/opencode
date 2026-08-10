@@ -982,6 +982,23 @@ const scenarios: Scenario[] = [
     }))
     .json(200, data(object)),
   http.protected
+    .get("/api/session/{sessionID}/peer", "v2.session.peer.list")
+    .seeded((ctx) => ctx.session({ title: "Peer list owner" }))
+    .at((ctx) => ({
+      path: route("/api/session/{sessionID}/peer", { sessionID: ctx.state.id }),
+      headers: ctx.headers(),
+    }))
+    .json(200, data(array)),
+  http.protected
+    .post("/api/session/{sessionID}/peer", "v2.session.peer.send")
+    .seeded((ctx) => ctx.session({ title: "Peer send owner" }))
+    .at((ctx) => ({
+      path: route("/api/session/{sessionID}/peer", { sessionID: ctx.state.id }),
+      headers: { ...ctx.headers(), "content-type": "application/json" },
+      body: { target: "missing-peer", text: "status?" },
+    }))
+    .status(400, undefined, "status"),
+  http.protected
     .post("/api/session/{sessionID}/agent", "v2.session.switchAgent")
     .seeded((ctx) => ctx.session({ title: "Switch agent" }))
     .at((ctx) => ({

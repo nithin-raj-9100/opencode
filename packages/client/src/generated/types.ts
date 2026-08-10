@@ -33,14 +33,6 @@ export type SessionNotFoundError = {
 export const isSessionNotFoundError = (value: unknown): value is SessionNotFoundError =>
   typeof value === "object" && value !== null && "_tag" in value && value["_tag"] === "SessionNotFoundError"
 
-export type ConflictError = {
-  readonly _tag: "ConflictError"
-  readonly message: string
-  readonly resource?: string | undefined
-}
-export const isConflictError = (value: unknown): value is ConflictError =>
-  typeof value === "object" && value !== null && "_tag" in value && value["_tag"] === "ConflictError"
-
 export type ServiceUnavailableError = {
   readonly _tag: "ServiceUnavailableError"
   readonly message: string
@@ -48,6 +40,14 @@ export type ServiceUnavailableError = {
 }
 export const isServiceUnavailableError = (value: unknown): value is ServiceUnavailableError =>
   typeof value === "object" && value !== null && "_tag" in value && value["_tag"] === "ServiceUnavailableError"
+
+export type ConflictError = {
+  readonly _tag: "ConflictError"
+  readonly message: string
+  readonly resource?: string | undefined
+}
+export const isConflictError = (value: unknown): value is ConflictError =>
+  typeof value === "object" && value !== null && "_tag" in value && value["_tag"] === "ConflictError"
 
 export type MessageNotFoundError = {
   readonly _tag: "MessageNotFoundError"
@@ -372,6 +372,35 @@ export type SessionsSwitchAgentInput = {
 
 export type SessionsSwitchAgentOutput = void
 
+export type SessionsPeerListInput = { readonly sessionID: { readonly sessionID: string }["sessionID"] }
+
+export type SessionsPeerListOutput = {
+  readonly data: ReadonlyArray<{
+    readonly ref: string
+    readonly sessionID: string
+    readonly title: string
+    readonly directory: string
+    readonly processID: number
+    readonly timeUpdated: number
+  }>
+}["data"]
+
+export type SessionsPeerSendInput = {
+  readonly sessionID: { readonly sessionID: string }["sessionID"]
+  readonly target: { readonly target: string; readonly text: string }["target"]
+  readonly text: { readonly target: string; readonly text: string }["text"]
+}
+
+export type SessionsPeerSendOutput = {
+  readonly data: {
+    readonly id: string
+    readonly sender: { readonly ref: string; readonly sessionID: string; readonly title: string }
+    readonly target: string
+    readonly text: string
+    readonly timeCreated: number
+  }
+}["data"]
+
 export type SessionsSwitchModelInput = {
   readonly sessionID: { readonly sessionID: string }["sessionID"]
   readonly model: {
@@ -475,6 +504,7 @@ export type SessionsPromptOutput = {
         readonly name: string
         readonly source?: { readonly start: number; readonly end: number; readonly text: string }
       }>
+      readonly peer?: { readonly ref: string; readonly sessionID: string; readonly title: string }
     }
     readonly delivery: "steer" | "queue"
     readonly timeCreated: number
@@ -554,6 +584,7 @@ export type SessionsContextOutput = {
           readonly name: string
           readonly source?: { readonly start: number; readonly end: number; readonly text: string }
         }>
+        readonly peer?: { readonly ref: string; readonly sessionID: string; readonly title: string }
         readonly type: "user"
       }
     | {
@@ -746,6 +777,7 @@ export type SessionsHistoryOutput = {
               readonly name: string
               readonly source?: { readonly start: number; readonly end: number; readonly text: string }
             }>
+            readonly peer?: { readonly ref: string; readonly sessionID: string; readonly title: string }
           }
           readonly delivery: "steer" | "queue"
         }
@@ -773,6 +805,7 @@ export type SessionsHistoryOutput = {
               readonly name: string
               readonly source?: { readonly start: number; readonly end: number; readonly text: string }
             }>
+            readonly peer?: { readonly ref: string; readonly sessionID: string; readonly title: string }
           }
           readonly delivery: "steer" | "queue"
         }
@@ -1204,6 +1237,7 @@ export type SessionsEventsOutput =
             readonly name: string
             readonly source?: { readonly start: number; readonly end: number; readonly text: string }
           }>
+          readonly peer?: { readonly ref: string; readonly sessionID: string; readonly title: string }
         }
         readonly delivery: "steer" | "queue"
       }
@@ -1231,6 +1265,7 @@ export type SessionsEventsOutput =
             readonly name: string
             readonly source?: { readonly start: number; readonly end: number; readonly text: string }
           }>
+          readonly peer?: { readonly ref: string; readonly sessionID: string; readonly title: string }
         }
         readonly delivery: "steer" | "queue"
       }
@@ -1632,6 +1667,7 @@ export type SessionsMessageOutput = {
           readonly name: string
           readonly source?: { readonly start: number; readonly end: number; readonly text: string }
         }>
+        readonly peer?: { readonly ref: string; readonly sessionID: string; readonly title: string }
         readonly type: "user"
       }
     | {
@@ -1804,6 +1840,7 @@ export type MessagesListOutput = {
           readonly name: string
           readonly source?: { readonly start: number; readonly end: number; readonly text: string }
         }>
+        readonly peer?: { readonly ref: string; readonly sessionID: string; readonly title: string }
         readonly type: "user"
       }
     | {

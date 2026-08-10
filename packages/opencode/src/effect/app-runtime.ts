@@ -54,6 +54,11 @@ import { EventV2Bridge } from "@/event-v2-bridge"
 import { LayerNode } from "@opencode-ai/core/effect/layer-node"
 import { AppNodeBuilderV1 } from "./app-node-builder-v1"
 import { SessionProjector } from "@opencode-ai/core/session/projector"
+import { SessionExecution } from "@opencode-ai/core/session/execution"
+import { SessionExecutionLocal } from "@opencode-ai/core/session/execution/local"
+import { buildLocationServiceMap, LocationServiceMap } from "@opencode-ai/core/location-services"
+
+const locationServiceMapV2 = buildLocationServiceMap()
 
 export const AppLayer = AppNodeBuilderV1.build(
   LayerNode.group([
@@ -106,6 +111,10 @@ export const AppLayer = AppNodeBuilderV1.build(
     ShareNext.node,
     SessionShare.node,
   ]),
+  [
+    [LocationServiceMap.node, locationServiceMapV2],
+    [SessionExecution.node, SessionExecutionLocal.node],
+  ],
 ).pipe(Layer.provideMerge(AppNodeBuilderV1.build(Ripgrep.node)), Layer.provideMerge(Observability.layer))
 
 const rt = ManagedRuntime.make(AppLayer, { memoMap })

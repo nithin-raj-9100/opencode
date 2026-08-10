@@ -19,6 +19,7 @@ import { SessionMessageUpdater } from "@opencode-ai/core/session/message-updater
 import { SessionProjector } from "@opencode-ai/core/session/projector"
 import { SessionExecution } from "@opencode-ai/core/session/execution"
 import { SessionInput } from "@opencode-ai/core/session/input"
+import { SessionPeer } from "@opencode-ai/core/session/peer"
 import { SessionInputTable, SessionMessageTable, SessionTable } from "@opencode-ai/core/session/sql"
 import { testEffect } from "./lib/effect"
 import { Snapshot } from "@opencode-ai/core/snapshot"
@@ -124,7 +125,14 @@ describe("SessionProjector", () => {
           sessionID,
           messageID: SessionMessage.ID.make("msg_first"),
           timestamp: created,
-          prompt: Prompt.make({ text: "first" }),
+          prompt: Prompt.make({
+            text: "first",
+            peer: {
+              ref: SessionPeer.Ref.make("ses_sender@process"),
+              sessionID: SessionV2.ID.make("ses_sender"),
+              title: "sender",
+            },
+          }),
           delivery: "steer",
         },
         { id: EventV2.ID.make("evt_z") },
@@ -144,6 +152,9 @@ describe("SessionProjector", () => {
       const sessions = yield* SessionV2.Service
       const firstPage = yield* sessions.messages({ sessionID, limit: 1, order: "asc" })
       expect(firstPage.map((message) => (message.type === "user" ? message.text : message.type))).toEqual(["first"])
+      expect(firstPage[0]).toMatchObject({
+        peer: { ref: "ses_sender@process", sessionID: "ses_sender", title: "sender" },
+      })
       const secondPage = yield* sessions.messages({
         sessionID,
         limit: 1,

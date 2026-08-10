@@ -100,6 +100,16 @@ afterEach(async () => {
 })
 
 describe("tool.registry", () => {
+  it.instance("exposes cross-session messaging tools", () =>
+    Effect.gen(function* () {
+      const registry = yield* ToolRegistry.Service
+      const ids = yield* registry.ids()
+
+      expect(ids).toContain("list_agents")
+      expect(ids).toContain("send_message")
+    }),
+  )
+
   it.instance("does not expose task_status", () =>
     Effect.gen(function* () {
       const registry = yield* ToolRegistry.Service

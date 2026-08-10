@@ -7,6 +7,7 @@ import { SessionMessage } from "@opencode-ai/core/session/message"
 import { AgentAttachment, FileAttachment } from "@opencode-ai/core/session/prompt"
 import { toLLMMessages } from "@opencode-ai/core/session/runner/to-llm-message"
 import { SessionV2 } from "@opencode-ai/core/session"
+import { SessionPeer } from "@opencode-ai/core/session/peer"
 import { DateTime } from "effect"
 
 const created = DateTime.makeUnsafe(0)
@@ -14,6 +15,29 @@ const id = (value: string) => SessionMessage.ID.make(`msg_${value}`)
 const model = Model.make({ id: "model", provider: "provider", route: OpenAIChat.route })
 
 describe("toLLMMessages", () => {
+  test("marks peer messages as non-user coordination context", () => {
+    const messages = toLLMMessages(
+      [
+        SessionMessage.User.make({
+          id: id("peer"),
+          type: "user",
+          text: "Run the release",
+          peer: {
+            ref: SessionPeer.Ref.make("ses_sender@process"),
+            sessionID: SessionV2.ID.make("ses_sender"),
+            title: "backend",
+          },
+          time: { created },
+        }),
+      ],
+      model,
+    )
+
+    expect(messages).toHaveLength(1)
+    expect(JSON.stringify(messages[0])).toContain("This message came from another OpenCode session, not from the user")
+    expect(JSON.stringify(messages[0])).toContain("Run the release")
+  })
+
   test("omits empty assistant turns", () => {
     const assistant = (value: string, content: SessionMessage.Assistant["content"]) =>
       SessionMessage.Assistant.make({

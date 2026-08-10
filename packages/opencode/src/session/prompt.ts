@@ -2,6 +2,8 @@ import { LayerNode } from "@opencode-ai/core/effect/layer-node"
 import { PermissionV1 } from "@opencode-ai/core/v1/permission"
 import path from "path"
 import { SessionV1 } from "@opencode-ai/core/v1/session"
+import { SessionV2 } from "@opencode-ai/core/session"
+import { SessionPeer } from "@opencode-ai/core/session/peer"
 import os from "os"
 import { SessionID, MessageID, PartID } from "./schema"
 import { MessageV2 } from "./message-v2"
@@ -44,6 +46,7 @@ import { decodeDataUrl } from "@/util/data-url"
 import { Process } from "@/util/process"
 import { Cause, Effect, Exit, Latch, Layer, Option, Scope, Context, Schema, Types } from "effect"
 import { InstanceState } from "@/effect/instance-state"
+import { InstanceRef } from "@/effect/instance-ref"
 import { TaskTool, type TaskPromptOps } from "@/tool/task"
 import { SessionRunState } from "./run-state"
 import { RuntimeFlags } from "@/effect/runtime-flags"
@@ -115,6 +118,8 @@ const layer = Layer.effect(
   Effect.gen(function* () {
     const status = yield* SessionStatus.Service
     const sessions = yield* Session.Service
+    const sessionsV2 = yield* SessionV2.Service
+    const peers = yield* SessionPeer.Service
     const agents = yield* Agent.Service
     const provider = yield* Provider.Service
     const processor = yield* SessionProcessor.Service
@@ -667,6 +672,7 @@ const layer = Layer.effect(
         },
         system: input.system,
         format: input.format,
+        peer: input.peer,
       }
 
       const current = yield* sessions.get(input.sessionID).pipe(Effect.orDie)
@@ -1052,7 +1058,26 @@ const layer = Layer.effect(
     const prompt: (input: PromptInput) => Effect.Effect<SessionV1.WithParts, Image.Error> = Effect.fn(
       "SessionPrompt.prompt",
     )(function* (input: PromptInput) {
+      const sessionV2 = yield* sessionsV2.get(input.sessionID).pipe(Effect.orDie)
       const session = yield* sessions.get(input.sessionID).pipe(Effect.orDie)
+      const instance = yield* InstanceState.context
+      yield* peers.activate(sessionV2, (message) =>
+        Effect.gen(function* () {
+          if ((yield* config.get()).cross_session?.inbound === "refuse") return
+          const target = yield* sessions.get(sessionV2.id).pipe(Effect.orDie)
+          yield* prompt({
+            sessionID: target.id,
+            messageID: MessageID.ascending(message.id),
+            agent: target.agent,
+            model: target.model
+              ? { providerID: target.model.providerID, modelID: target.model.id }
+              : undefined,
+            variant: target.model?.variant === "default" ? undefined : target.model?.variant,
+            peer: message.sender,
+            parts: [{ type: "text", text: message.text }],
+          })
+        }).pipe(Effect.provideService(InstanceRef, instance), Effect.orDie, Effect.asVoid),
+      )
       yield* revert.cleanup(session)
       const message = yield* createUserMessage(input)
       yield* sessions.touch(input.sessionID)
@@ -1508,6 +1533,7 @@ export const PromptInput = Schema.Struct({
   }),
   format: Schema.optional(SessionV1.Format),
   system: Schema.optional(Schema.String),
+  peer: Schema.optional(SessionPeer.Source),
   variant: Schema.optional(Schema.String),
   parts: Schema.Array(
     Schema.Union([
@@ -1625,6 +1651,8 @@ export const node = LayerNode.make({
     EventV2Bridge.node,
     RuntimeFlags.node,
     Database.node,
+    SessionV2.node,
+    SessionPeer.node,
   ],
 })
 

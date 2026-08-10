@@ -21,6 +21,7 @@ import { Model } from "@opencode-ai/schema/model"
 import { Location } from "@opencode-ai/schema/location"
 import { Revert } from "@opencode-ai/schema/revert"
 import { SessionEvent } from "@opencode-ai/schema/session-event"
+import { SessionPeer } from "@opencode-ai/schema/session-peer"
 
 const SessionsQueryFields = {
   workspace: Workspace.ID.pipe(Schema.optional),
@@ -182,6 +183,37 @@ export const makeSessionGroup = <I extends HttpApiMiddleware.AnyId, S>(sessionLo
             identifier: "v2.session.switchAgent",
             summary: "Switch session agent",
             description: "Switch the agent used by subsequent provider turns.",
+          }),
+        ),
+    )
+    .add(
+      HttpApiEndpoint.get("session.peerList", "/api/session/:sessionID/peer", {
+        params: { sessionID: Session.ID },
+        success: Schema.Struct({ data: Schema.Array(SessionPeer.Info) }),
+        error: SessionNotFoundError,
+      })
+        .middleware(sessionLocationMiddleware)
+        .annotateMerge(
+          OpenApi.annotations({
+            identifier: "v2.session.peer.list",
+            summary: "List running peer sessions",
+            description: "List other OpenCode sessions reachable on this machine.",
+          }),
+        ),
+    )
+    .add(
+      HttpApiEndpoint.post("session.peerSend", "/api/session/:sessionID/peer", {
+        params: { sessionID: Session.ID },
+        payload: Schema.Struct({ target: Schema.String, text: Schema.String }),
+        success: Schema.Struct({ data: SessionPeer.Message }),
+        error: [InvalidRequestError, SessionNotFoundError, ServiceUnavailableError],
+      })
+        .middleware(sessionLocationMiddleware)
+        .annotateMerge(
+          OpenApi.annotations({
+            identifier: "v2.session.peer.send",
+            summary: "Message a peer session",
+            description: "Queue a plain-text coordination message for another running OpenCode session.",
           }),
         ),
     )

@@ -14,6 +14,8 @@ import { TodoWriteTool } from "./todowrite"
 import { WebFetchTool } from "./webfetch"
 import { WebSearchTool } from "./websearch"
 import { WriteTool } from "./write"
+import { ListAgentsTool } from "./list-agents"
+import { SendMessageTool } from "./send-message"
 
 /**
  * Composes only the shipped Location-scoped built-in tool transforms.
@@ -37,8 +39,10 @@ export const node = makeLocationNode({
     EditTool.node,
     GlobTool.node,
     GrepTool.node,
+    ListAgentsTool.node,
     QuestionTool.node,
     ReadTool.node,
+    SendMessageTool.node,
     SkillTool.node,
     TodoWriteTool.node,
     WebFetchTool.node,
