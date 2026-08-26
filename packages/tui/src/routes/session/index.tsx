@@ -55,6 +55,7 @@ import { DialogForkFromTimeline } from "./dialog-fork-from-timeline"
 import { DialogSessionRename } from "../../component/dialog-session-rename"
 import { Sidebar } from "./sidebar"
 import { SubagentFooter } from "./subagent-footer.tsx"
+import { PromptNavigator } from "./prompt-navigator"
 import { filetype } from "../../util/filetype"
 import parsers from "../../parsers-config"
 import { errorMessage } from "../../util/error"
@@ -375,56 +376,74 @@ export function Session() {
     })
   })
 
-  // Helper: Find next visible message boundary in direction
-  const findNextVisibleMessage = (direction: "next" | "prev"): string | null => {
+  const userPrompts = createMemo(() => {
+    const msgs = messages()
+    return msgs.filter((msg): msg is UserMessage => {
+      if (msg.role !== "user") return false
+      const parts = sync.data.part[msg.id] ?? []
+      return parts.some((p) => p && p.type === "text" && !p.synthetic && !p.ignored)
+    })
+  })
+
+  const [activePromptIndex, setActivePromptIndex] = createSignal(1)
+
+  createEffect(
+    on(
+      () => userPrompts().length,
+      (len) => {
+        setActivePromptIndex(Math.max(1, len))
+      },
+    ),
+  )
+
+  const navigatePrompt = (direction: "prev" | "next", dialog?: ReturnType<typeof useDialog>) => {
+    if (!scroll || scroll.isDestroyed) return
+    const prompts = userPrompts()
+    if (prompts.length === 0) return
+
     const children = scroll.getChildren()
-    const messagesList = messages()
-    const scrollTop = scroll.y
-
-    // Get visible messages sorted by position, filtering for valid non-synthetic, non-ignored content
-    const visibleMessages = children
-      .filter((c) => {
-        if (!c.id) return false
-        const message = messagesList.find((m) => m.id === c.id)
-        if (!message) return false
-
-        // Check if message has valid non-synthetic, non-ignored text parts
-        const parts = sync.data.part[message.id]
-        if (!parts || !Array.isArray(parts)) return false
-
-        return parts.some((part) => part && part.type === "text" && !part.synthetic && !part.ignored)
+    const promptPositions = prompts
+      .map((p, index) => {
+        const child = children.find((c) => c.id === p.id)
+        return child ? { id: p.id, index: index + 1, y: child.y } : null
       })
+      .filter((p): p is { id: string; index: number; y: number } => p !== null)
       .sort((a, b) => a.y - b.y)
 
-    if (visibleMessages.length === 0) return null
+    if (promptPositions.length === 0) return
 
-    if (direction === "next") {
-      // Find first message below current position
-      return visibleMessages.find((c) => c.y > scrollTop + 10)?.id ?? null
+    if (direction === "prev") {
+      const prev = [...promptPositions].reverse().find((p) => p.y - scroll.y < 0)
+      if (prev) {
+        scroll.scrollBy(prev.y - scroll.y - 1)
+        setActivePromptIndex(prev.index)
+      } else {
+        scroll.scrollTo(0)
+        setActivePromptIndex(1)
+      }
+    } else {
+      const next = promptPositions.find((p) => p.y - scroll.y > 2)
+      if (next) {
+        scroll.scrollBy(next.y - scroll.y - 1)
+        setActivePromptIndex(next.index)
+      } else {
+        scroll.scrollTo(scroll.scrollHeight)
+        setActivePromptIndex(prompts.length)
+      }
     }
-    // Find last message above current position
-    return [...visibleMessages].reverse().find((c) => c.y < scrollTop - 10)?.id ?? null
+    if (dialog) dialog.clear()
   }
 
   // Helper: Scroll to message in direction or fallback to page scroll
   const scrollToMessage = (direction: "next" | "prev", dialog: ReturnType<typeof useDialog>) => {
-    const targetID = findNextVisibleMessage(direction)
-
-    if (!targetID) {
-      scroll.scrollBy(direction === "next" ? scroll.height : -scroll.height)
-      dialog.clear()
-      return
-    }
-
-    const child = scroll.getChildren().find((c) => c.id === targetID)
-    if (child) scroll.scrollBy(child.y - scroll.y - 1)
-    dialog.clear()
+    navigatePrompt(direction, dialog)
   }
 
   function toBottom() {
     setTimeout(() => {
       if (!scroll || scroll.isDestroyed) return
       scroll.scrollTo(scroll.scrollHeight)
+      setActivePromptIndex(Math.max(1, userPrompts().length))
     }, 50)
   }
 
@@ -835,28 +854,13 @@ export function Session() {
       category: "Session",
       hidden: true,
       run: () => {
-        const messages = sync.data.message[route.sessionID]
-        if (!messages || !messages.length) return
-
-        // Find the most recent user message with non-ignored, non-synthetic text parts
-        for (let i = messages.length - 1; i >= 0; i--) {
-          const message = messages[i]
-          if (!message || message.role !== "user") continue
-
-          const parts = sync.data.part[message.id]
-          if (!parts || !Array.isArray(parts)) continue
-
-          const hasValidTextPart = parts.some(
-            (part) => part && part.type === "text" && !part.synthetic && !part.ignored,
-          )
-
-          if (hasValidTextPart) {
-            const child = scroll.getChildren().find((child) => {
-              return child.id === message.id
-            })
-            if (child) scroll.scrollBy(child.y - scroll.y - 1)
-            break
-          }
+        const prompts = userPrompts()
+        if (prompts.length === 0) return
+        const lastPrompt = prompts[prompts.length - 1]
+        const child = scroll.getChildren().find((c) => c.id === lastPrompt.id)
+        if (child) {
+          scroll.scrollBy(child.y - scroll.y - 1)
+          setActivePromptIndex(prompts.length)
         }
       },
     },
@@ -1294,6 +1298,12 @@ export function Session() {
                   )}
                 </For>
               </scrollbox>
+              <PromptNavigator
+                showScrollbar={showScrollbar}
+                current={activePromptIndex}
+                total={() => userPrompts().length}
+                onNavigate={(dir) => navigatePrompt(dir)}
+              />
               <box flexShrink={0}>
                 <Show when={permissions().length > 0}>
                   <PermissionPrompt
