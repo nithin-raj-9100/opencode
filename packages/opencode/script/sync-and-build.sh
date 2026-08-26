@@ -27,15 +27,15 @@ git rebase upstream/dev
 echo "==> Installing workspace dependencies..."
 bun install
 
-echo "==> Compiling native standalone binary with shared database channel..."
-OPENCODE_CHANNEL=latest bun run --cwd "$REPO_DIR/packages/opencode" build --single
+echo "==> Compiling OpenCode 2.0 native standalone binary with shared database channel..."
+OPENCODE_CHANNEL=latest bun run --cwd "$REPO_DIR/packages/cli" build --single
 
 # Detect architecture and link binary
 ARCH=$(uname -m)
 if [ "$ARCH" = "arm64" ]; then
-  BIN_PATH="$REPO_DIR/packages/opencode/dist/opencode-darwin-arm64/bin/opencode"
+  BIN_PATH="$REPO_DIR/packages/cli/dist/cli-darwin-arm64/bin/lildax"
 else
-  BIN_PATH="$REPO_DIR/packages/opencode/dist/opencode-darwin-x64/bin/opencode"
+  BIN_PATH="$REPO_DIR/packages/cli/dist/cli-darwin-x64/bin/lildax"
 fi
 
 if [ -f "$BIN_PATH" ]; then
