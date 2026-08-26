@@ -28,7 +28,6 @@ export function PromptNavigator(props: {
         paddingRight={1}
         gap={1}
       >
-        <text fg={theme.textMuted}>{`${props.current()} of ${props.total()}`}</text>
         <box
           onMouseOver={() => setHover("up")}
           onMouseOut={() => setHover(null)}
@@ -39,6 +38,7 @@ export function PromptNavigator(props: {
         >
           <text fg={hover() === "up" ? theme.text : theme.textMuted}>↑</text>
         </box>
+        <text fg={theme.textMuted}>{`${props.current()} of ${props.total()}`}</text>
         <box
           onMouseOver={() => setHover("down")}
           onMouseOut={() => setHover(null)}

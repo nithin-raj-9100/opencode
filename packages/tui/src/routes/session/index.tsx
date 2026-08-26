@@ -413,12 +413,15 @@ export function Session() {
     if (promptPositions.length === 0) return
 
     if (direction === "prev") {
-      const prev = [...promptPositions].reverse().find((p) => p.y - scroll.y < 0)
+      const prev = [...promptPositions].reverse().find((p) => p.y - scroll.y < -1)
       if (prev) {
         scroll.scrollBy(prev.y - scroll.y - 1)
         setActivePromptIndex(prev.index)
       } else {
-        scroll.scrollTo(0)
+        const first = promptPositions[0]
+        if (first && Math.abs(first.y - scroll.y - 1) > 1) {
+          scroll.scrollBy(first.y - scroll.y - 1)
+        }
         setActivePromptIndex(1)
       }
     } else {
@@ -426,9 +429,6 @@ export function Session() {
       if (next) {
         scroll.scrollBy(next.y - scroll.y - 1)
         setActivePromptIndex(next.index)
-      } else {
-        scroll.scrollTo(scroll.scrollHeight)
-        setActivePromptIndex(prompts.length)
       }
     }
     if (dialog) dialog.clear()
