@@ -26,8 +26,8 @@ git rebase upstream/v2
 echo "==> Installing workspace dependencies..."
 bun install
 
-echo "==> Compiling native OpenCode 2 binary..."
-OPENCODE_CLI_NAME=opencode bun run --cwd "$REPO_DIR/packages/cli" build --single --skip-web-ui
+echo "==> Compiling native OpenCode 2 binary with shared database channel..."
+OPENCODE_CHANNEL=latest OPENCODE_CLI_NAME=opencode bun run --cwd "$REPO_DIR/packages/cli" build --single --skip-web-ui
 
 # Detect architecture and link binary
 ARCH=$(uname -m)
