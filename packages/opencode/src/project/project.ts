@@ -179,11 +179,16 @@ const layer = Layer.effect(
                 .set({ project_id: newID, time_updated: sql`${SessionTable.time_updated}` })
                 .where(eq(SessionTable.project_id, oldID))
                 .run()
-              yield* d
-                .update(WorkspaceTable)
-                .set({ project_id: newID })
-                .where(eq(WorkspaceTable.project_id, oldID))
-                .run()
+
+              const workspaceCols = yield* d
+                .all(sql`PRAGMA table_info(workspace)`)
+                .pipe(Effect.orElseSucceed(() => []))
+              const hasProjectId = (workspaceCols as Array<{ name?: string }>).some((c) => c?.name === "project_id")
+              if (hasProjectId) {
+                yield* d
+                  .run(sql`UPDATE workspace SET project_id = ${newID} WHERE project_id = ${oldID}`)
+                  .pipe(Effect.orElseSucceed(() => undefined))
+              }
 
               if (oldProject) yield* d.delete(ProjectTable).where(eq(ProjectTable.id, oldID)).run()
             }),
