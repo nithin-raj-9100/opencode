@@ -386,6 +386,37 @@ export function Session() {
   })
 
   const [activePromptIndex, setActivePromptIndex] = createSignal(1)
+  const [showJumpToLatest, setShowJumpToLatest] = createSignal(false)
+  const [jumpHover, setJumpHover] = createSignal(false)
+
+  const updateScrollState = () => {
+    if (!scroll || scroll.isDestroyed) return
+    const scrollBox = scroll as any
+    const scrollTop = typeof scrollBox.scrollTop === "number" ? scrollBox.scrollTop : (scrollBox.y ?? 0)
+    const scrollHeight = scrollBox.scrollHeight ?? 0
+    const viewportHeight = scrollBox.viewport?.height ?? scrollBox.height ?? 0
+    const isUp = scrollTop < Math.max(0, scrollHeight - viewportHeight - 2)
+    setShowJumpToLatest(isUp)
+
+    const prompts = userPrompts()
+    if (prompts.length > 0) {
+      const children = scroll.getChildren()
+      const promptPositions = prompts
+        .map((p, index) => {
+          const child = children.find((c) => c.id === p.id)
+          return child ? { index: index + 1, y: child.y } : null
+        })
+        .filter((p): p is { index: number; y: number } => p !== null)
+        .sort((a, b) => a.y - b.y)
+
+      const active = [...promptPositions].reverse().find((p) => p.y <= scroll.y + 5)
+      if (active) {
+        setActivePromptIndex(active.index)
+      } else if (promptPositions.length > 0) {
+        setActivePromptIndex(1)
+      }
+    }
+  }
 
   createEffect(
     on(
@@ -431,6 +462,7 @@ export function Session() {
         setActivePromptIndex(next.index)
       }
     }
+    updateScrollState()
     if (dialog) dialog.clear()
   }
 
@@ -440,10 +472,12 @@ export function Session() {
   }
 
   function toBottom() {
+    setShowJumpToLatest(false)
     setTimeout(() => {
       if (!scroll || scroll.isDestroyed) return
       scroll.scrollTo(scroll.scrollHeight)
       setActivePromptIndex(Math.max(1, userPrompts().length))
+      setShowJumpToLatest(false)
     }, 50)
   }
 
@@ -775,6 +809,7 @@ export function Session() {
       hidden: true,
       run: () => {
         scroll.scrollBy(-scroll.height / 2)
+        updateScrollState()
         dialog.clear()
       },
     },
@@ -785,6 +820,7 @@ export function Session() {
       hidden: true,
       run: () => {
         scroll.scrollBy(scroll.height / 2)
+        updateScrollState()
         dialog.clear()
       },
     },
@@ -795,6 +831,7 @@ export function Session() {
       hidden: true,
       run: () => {
         scroll.scrollBy(-1)
+        updateScrollState()
         dialog.clear()
       },
     },
@@ -805,6 +842,7 @@ export function Session() {
       hidden: true,
       run: () => {
         scroll.scrollBy(1)
+        updateScrollState()
         dialog.clear()
       },
     },
@@ -815,6 +853,7 @@ export function Session() {
       hidden: true,
       run: () => {
         scroll.scrollBy(-scroll.height / 4)
+        updateScrollState()
         dialog.clear()
       },
     },
@@ -825,6 +864,7 @@ export function Session() {
       hidden: true,
       run: () => {
         scroll.scrollBy(scroll.height / 4)
+        updateScrollState()
         dialog.clear()
       },
     },
@@ -835,6 +875,7 @@ export function Session() {
       hidden: true,
       run: () => {
         scroll.scrollTo(0)
+        updateScrollState()
         dialog.clear()
       },
     },
@@ -844,7 +885,7 @@ export function Session() {
       category: "Session",
       hidden: true,
       run: () => {
-        scroll.scrollTo(scroll.scrollHeight)
+        toBottom()
         dialog.clear()
       },
     },
@@ -1183,7 +1224,15 @@ export function Session() {
           <box flexGrow={1} minHeight={0} paddingBottom={1} paddingLeft={2} paddingRight={2} gap={1}>
             <Show when={session()}>
               <scrollbox
-                ref={(r) => (scroll = r)}
+                ref={(r) => {
+                  scroll = r
+                  if (r) {
+                    r.verticalScrollBar?.on("change", updateScrollState)
+                  }
+                }}
+                onMouseScroll={() => {
+                  updateScrollState()
+                }}
                 viewportOptions={{
                   paddingRight: showScrollbar() ? 1 : 0,
                 }}
@@ -1304,6 +1353,22 @@ export function Session() {
                 total={() => userPrompts().length}
                 onNavigate={(dir) => navigatePrompt(dir)}
               />
+              <box height={1} flexShrink={0} flexDirection="row" justifyContent="flex-end" paddingRight={showScrollbar() ? 2 : 0}>
+                <Show when={showJumpToLatest()}>
+                  <box
+                    id="session-jump-to-latest"
+                    paddingLeft={1}
+                    paddingRight={1}
+                    onMouseOver={() => setJumpHover(true)}
+                    onMouseOut={() => setJumpHover(false)}
+                    onMouseUp={() => toBottom()}
+                  >
+                    <text fg={jumpHover() ? theme.text : theme.textMuted}>
+                      Jump to latest ↓
+                    </text>
+                  </box>
+                </Show>
+              </box>
               <box flexShrink={0}>
                 <Show when={permissions().length > 0}>
                   <PermissionPrompt
