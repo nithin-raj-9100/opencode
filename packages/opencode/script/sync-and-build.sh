@@ -27,8 +27,8 @@ git rebase upstream/dev
 echo "==> Installing workspace dependencies..."
 bun install
 
-echo "==> Compiling native standalone binary..."
-bun run --cwd "$REPO_DIR/packages/opencode" build --single
+echo "==> Compiling native standalone binary with shared database channel..."
+OPENCODE_CHANNEL=latest bun run --cwd "$REPO_DIR/packages/opencode" build --single
 
 # Detect architecture and link binary
 ARCH=$(uname -m)
