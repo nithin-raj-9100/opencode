@@ -105,6 +105,7 @@ import { useArgs } from "../../context/args"
 import { withTimestampedFallback } from "@opencode-ai/util/session-title-fallback"
 import { useSessionTabs } from "../../context/session-tabs"
 import { createSingleFlight } from "../../util/single-flight"
+import { PromptNavigator } from "./prompt-navigator"
 import type { SessionInbox } from "@opencode-ai/schema/session-inbox"
 import { generateThinkingSyntax } from "./thinking-syntax"
 import { createDelayedPresence } from "../../util/delayed-presence"
@@ -670,6 +671,32 @@ export function Session(props: {
       alignMessage(messageID, Math.max(0, y - (message?.type === "assistant" ? 1 : 0)))
     })
 
+  const userPrompts = createMemo(() => messages().filter((m) => m.type === "user"))
+
+  const currentPromptNumber = createMemo(() => {
+    const prompts = userPrompts()
+    if (prompts.length === 0) return 0
+    const active = navigationMessage()
+    if (!active) return prompts.length
+    const idx = prompts.findIndex((p) => p.id === active)
+    return idx === -1 ? prompts.length : idx + 1
+  })
+
+  const navigatePrompt = (direction: "prev" | "next") => {
+    const prompts = userPrompts()
+    if (prompts.length === 0) return
+    const currentNum = currentPromptNumber()
+    if (direction === "prev") {
+      const targetIdx = Math.max(0, currentNum - 2)
+      const target = prompts[targetIdx]
+      if (target) jumpToMessage(target.id)
+      return
+    }
+    const targetIdx = Math.min(prompts.length - 1, currentNum)
+    const target = prompts[targetIdx]
+    if (target) jumpToMessage(target.id)
+  }
+
   function toBottom() {
     clearMessageNavigation()
     ensureAllRowsPending = undefined
@@ -1053,14 +1080,14 @@ export function Session(props: {
       id: "session.message.user.next",
       group: "Session",
       palette: undefined,
-      run: () => scrollToMessage("next", dialog, true),
+      run: () => navigatePrompt("next"),
     },
     {
       title: "Previous user message",
       id: "session.message.user.previous",
       group: "Session",
       palette: undefined,
-      run: () => scrollToMessage("prev", dialog, true),
+      run: () => navigatePrompt("prev"),
     },
     {
       title: "Copy last assistant message",
@@ -1302,6 +1329,12 @@ export function Session(props: {
         >
           <Show when={session()}>
             <box flexGrow={1} minHeight={0} position="relative">
+              <PromptNavigator
+                current={currentPromptNumber()}
+                total={userPrompts().length}
+                onPrevious={() => navigatePrompt("prev")}
+                onNext={() => navigatePrompt("next")}
+              />
               <scrollbox
                 ref={(r) => {
                   scroll = r
