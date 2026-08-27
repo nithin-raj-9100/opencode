@@ -1,6 +1,7 @@
 import { Location } from "@opencode-ai/core/location"
 import { Permission } from "@opencode-ai/core/permission"
 import { PermissionSaved } from "@opencode-ai/core/permission/saved"
+import { PermissionAuto } from "@opencode-ai/core/permission/auto"
 import { Effect } from "effect"
 import { HttpApiBuilder, HttpApiSchema } from "effect/unstable/httpapi"
 import { Api } from "../api"
@@ -24,6 +25,14 @@ export const PermissionHandler = HttpApiBuilder.group(Api, "server.permission", 
     })
 
     return handlers
+      .handle(
+        "session.permission.auto",
+        Effect.fn(function* (ctx) {
+          const auto = yield* PermissionAuto.Service
+          yield* auto.set(ctx.params.sessionID, ctx.payload.enabled)
+          return HttpApiSchema.NoContent.make()
+        }),
+      )
       .handle(
         "permission.request.list",
         Effect.fn(function* () {
@@ -72,6 +81,14 @@ export const PermissionHandler = HttpApiBuilder.group(Api, "server.permission", 
         Effect.fn(function* (ctx) {
           const owned = yield* requireOwnedRequest(ctx.params.sessionID, ctx.params.requestID)
           return { data: owned.request }
+        }),
+      )
+      .handle(
+        "session.permission.review",
+        Effect.fn(function* (ctx) {
+          const owned = yield* requireOwnedRequest(ctx.params.sessionID, ctx.params.requestID)
+          const auto = yield* PermissionAuto.Service
+          return { data: yield* auto.review(owned.request) }
         }),
       )
       .handle(

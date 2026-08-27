@@ -79,6 +79,23 @@ describe("ConfigNormalize", () => {
     expect(Duration.toMillis(info.warming.duration ?? Duration.zero)).toBe(1_800_000)
   })
 
+  test("preserves reviewed auto-mode policy as native V2 configuration", () => {
+    const result = decoded({
+      permission_auto: {
+        model: "openai/gpt-5.6-luna#high",
+        environment: "GitHub organization acme is trusted.",
+        block: ["Never deploy to production."],
+        allow: ["Push to the current feature branch."],
+      },
+    })
+    expect(String(result.permission_auto?.model?.providerID)).toBe("openai")
+    expect(String(result.permission_auto?.model?.model)).toBe("gpt-5.6-luna")
+    expect(String(result.permission_auto?.model?.variant)).toBe("high")
+    expect(result.permission_auto?.environment).toBe("GitHub organization acme is trusted.")
+    expect(result.permission_auto?.block).toEqual(["Never deploy to production."])
+    expect(result.permission_auto?.allow).toEqual(["Push to the current feature branch."])
+  })
+
   test("preserves arbitrary JSON-round-tripped native configuration", () => {
     FastCheck.assert(
       FastCheck.property(Schema.toArbitrary(Info)(FastCheck), (info) => {

@@ -691,13 +691,13 @@ test("configured app bindings execute settings and permission commands", async (
     setup.mockInput.pressKey("END")
     const commands = await setup.waitForFrame(
       (frame) => {
-        if (frame.includes("Disable auto-approve permissions")) return true
+        if (frame.includes("Disable reviewed auto mode")) return true
         setup.mockInput.pressArrow("up")
         return false
       },
       { maxPasses: 100 },
     )
-    expect(commands).not.toContain("Enable auto-approve permissions")
+    expect(commands).not.toContain("Enable reviewed auto mode")
 
     setup.renderer.destroy()
     await task

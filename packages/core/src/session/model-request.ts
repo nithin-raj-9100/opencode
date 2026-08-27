@@ -19,6 +19,7 @@ import { SessionSystemPrompt } from "./system-prompt.js"
 import { toLLMMessages } from "./runner/to-llm-message.js"
 import type { SessionMessage } from "./message.js"
 import type { Agent } from "../agent.js"
+import { PermissionAuto } from "../permission/auto.js"
 
 const IMAGE_BYTES_TRIGGER = 25 * 1024 * 1024 // 25 MiB
 const IMAGE_BYTES_TARGET = 15 * 1024 * 1024 // 15 MiB
@@ -278,6 +279,7 @@ export const layer = Layer.effect(
   Effect.gen(function* () {
     const hooks = yield* PluginHooks.Service
     const transport = yield* SessionModelTransport.Service
+    const auto = yield* PermissionAuto.Service
     const app = yield* App.Metadata
     const prepare = Effect.fn("SessionModelRequest.prepare")(function* (input: PrepareInput) {
       const session = input.scope.session
@@ -285,7 +287,7 @@ export const layer = Layer.effect(
       const model = resolved.model
       const tools = input.scope.tools ?? {
         definitions: [],
-        execute: () => new Tool.Error({ message: "Tools are not available for this request" }),
+        execute: () => Effect.fail(new Tool.Error({ message: "Tools are not available for this request" })),
       }
       const registry = new Map(tools.definitions.map((tool) => [tool.name, tool]))
       // The definition objects we hand to hooks, mapped back to their tools. Hooks rename a
@@ -362,10 +364,12 @@ export const layer = Layer.effect(
         const tool = hooked.get(input.call.name)
         // A registered tool absent from the hooked set was removed or renamed by a hook.
         if (!tool && registry.has(input.call.name))
-          return new Tool.Error({ message: `Tool is not available for this request: ${input.call.name}` })
-        return tools
-          .execute(tool ? { ...input, call: { ...input.call, name: tool.name } } : input)
-          .pipe(Effect.catchCauseFilter(declineDefect, (decline) => Effect.fail(decline)))
+          return Effect.fail(new Tool.Error({ message: `Tool is not available for this request: ${input.call.name}` }))
+        const execution = tools.execute(tool ? { ...input, call: { ...input.call, name: tool.name } } : input)
+        return execution.pipe(
+          Effect.flatMap((result) => auto.inspect(session.id, result)),
+          Effect.catchCauseFilter(declineDefect, (decline) => Effect.fail(decline)),
+        )
       }
       return {
         request,
@@ -381,5 +385,5 @@ export const layer = Layer.effect(
 export const node = makeLocationNode({
   service: Service,
   layer,
-  deps: [PluginHooks.node, SessionModelTransport.node, App.node],
+  deps: [PluginHooks.node, SessionModelTransport.node, PermissionAuto.node, App.node],
 })

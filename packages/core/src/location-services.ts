@@ -25,6 +25,7 @@ import { LocationServiceMap } from "./location-service-map.js"
 import { ModelResolver } from "./model-resolver.js"
 import { MCP } from "./mcp/index.js"
 import { Permission } from "./permission.js"
+import { PermissionAuto } from "./permission/auto.js"
 import { Plugin } from "./plugin.js"
 import { PluginSupervisor } from "./plugin/supervisor.js"
 import { Worktree } from "./worktree.js"
@@ -84,6 +85,7 @@ const locationServiceNodes = [
   Formatter.node,
   MCP.node,
   Permission.node,
+  PermissionAuto.node,
   Tool.node,
   ToolOutput.node,
   Image.node,
