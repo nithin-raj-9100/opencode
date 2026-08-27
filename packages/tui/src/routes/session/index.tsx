@@ -28,15 +28,16 @@ import { PatchDiff } from "../../component/patch-diff"
 import { createSyntaxStyleMemo, ThemeContextProvider, useTheme, useThemes } from "../../context/theme"
 import { BoxRenderable, ScrollBoxRenderable, addDefaultParsers, TextAttributes, RGBA, MouseEvent } from "@opentui/core"
 import { Prompt, type PromptRef } from "../../component/prompt"
-import type {
-  ModelInfo,
-  SessionMessageInfo,
-  SessionMessageAssistant,
-  SessionMessageAssistantReasoning,
-  SessionMessageAssistantText,
-  SessionMessageAssistantTool,
-  SessionMessageUser,
-  SessionInfo,
+import {
+  isSessionNotFoundError,
+  type ModelInfo,
+  type SessionMessageInfo,
+  type SessionMessageAssistant,
+  type SessionMessageAssistantReasoning,
+  type SessionMessageAssistantText,
+  type SessionMessageAssistantTool,
+  type SessionMessageUser,
+  type SessionInfo,
 } from "@opencode-ai/client"
 import { useLocal } from "../../context/local"
 import { Locale } from "../../util/locale"
@@ -261,21 +262,87 @@ export function Session(props: {
   const scrollAcceleration = createMemo(() => getScrollAcceleration(config))
   const toast = useToast()
   const client = useClient()
-  const autoApproved = new Set<string>()
+  let autoSynced = false
+  let autoRequested = false
+  let autoSync = 0
+  createEffect(() => {
+    if (!session()) return
+    const enabled = local.permission.mode === "auto"
+    const generation = ++autoSync
+    if (!enabled && !autoRequested) return
+    if (enabled) autoRequested = true
+    const sync = (attempt: number): Promise<void> =>
+      client.api.permission
+        .auto({ sessionID: route.sessionID, enabled })
+        .then(() => {
+          if (generation !== autoSync) return
+          autoSynced = enabled
+          if (!enabled) autoRequested = false
+        })
+        .catch((error) => {
+          if (generation !== autoSync) return
+          if (enabled && isSessionNotFoundError(error) && attempt < 50)
+            return Bun.sleep(100).then(() => sync(attempt + 1))
+          if (local.permission.mode !== "auto") return
+          local.permission.set("normal")
+          toast.show({ variant: "warning", message: `Unable to enable reviewed auto mode: ${errorMessage(error)}` })
+        })
+    void sync(0)
+  })
+  onCleanup(() => {
+    autoSync += 1
+    if (!autoRequested && !autoSynced) return
+    void client.api.permission.auto({ sessionID: route.sessionID, enabled: false })
+  })
+  const autoReviewed = new Set<string>()
+  const autoDenials = { consecutive: 0, total: 0 }
   createEffect(() => {
     if (local.permission.mode !== "auto") return
     permissions().forEach((request) => {
-      if (autoApproved.has(request.id)) return
-      autoApproved.add(request.id)
-      void data.session.permission
-        .reply({
-          sessionID: request.sessionID,
-          reply: "once",
-          requestID: request.id,
+      if (autoReviewed.has(request.id)) return
+      autoReviewed.add(request.id)
+      void client.api.permission
+        .review({ sessionID: request.sessionID, requestID: request.id })
+        .then((reviewed) => {
+          if (local.permission.mode !== "auto") return
+          if (reviewed.decision === "ask") {
+            autoReviewed.delete(request.id)
+            local.permission.set("normal")
+            toast.show({ variant: "warning", message: `Auto mode paused: ${reviewed.reason}` })
+            return
+          }
+          if (reviewed.decision === "allow") {
+            autoDenials.consecutive = 0
+            return data.session.permission.reply({
+              sessionID: request.sessionID,
+              reply: "once",
+              requestID: request.id,
+            })
+          }
+
+          autoDenials.consecutive += 1
+          autoDenials.total += 1
+          if (autoDenials.consecutive >= 3 || autoDenials.total >= 20) {
+            autoReviewed.delete(request.id)
+            local.permission.set("normal")
+            toast.show({
+              variant: "warning",
+              message: `Auto mode stopped after repeated denials: ${reviewed.reason}`,
+            })
+            return
+          }
+          return data.session.permission.reply({
+            sessionID: request.sessionID,
+            reply: "reject",
+            requestID: request.id,
+            message: `Auto mode blocked this action: ${reviewed.reason} Find a safer approach and do not bypass this boundary.`,
+          })
         })
         .catch((error) => {
-          autoApproved.delete(request.id)
-          toast.error(error)
+          autoReviewed.delete(request.id)
+          if (local.permission.mode !== "auto") return
+          local.permission.set("normal")
+          toast.show({ variant: "warning", message: `Auto mode paused: ${errorMessage(error)}` })
         })
     })
   })

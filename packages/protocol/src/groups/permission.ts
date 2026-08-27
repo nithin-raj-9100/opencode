@@ -60,6 +60,22 @@ export const makePermissionGroup = <
     // Effect applies group middleware only to endpoints already added; session endpoints use session placement below.
     .middleware(locationMiddleware)
     .add(
+      HttpApiEndpoint.put("session.permission.auto", "/api/session/:sessionID/permission/auto", {
+        params: { sessionID: Session.ID },
+        payload: Schema.Struct({ enabled: Schema.Boolean }),
+        success: HttpApiSchema.NoContent,
+        error: SessionNotFoundError,
+      })
+        .middleware(sessionLocationMiddleware)
+        .annotateMerge(
+          OpenApi.annotations({
+            identifier: "v2.session.permission.auto",
+            summary: "Set reviewed auto mode",
+            description: "Enable or disable reviewed auto mode for a session family.",
+          }),
+        ),
+    )
+    .add(
       HttpApiEndpoint.post("session.permission.create", "/api/session/:sessionID/permission", {
         params: { sessionID: Session.ID },
         payload: Schema.Struct({
@@ -110,6 +126,21 @@ export const makePermissionGroup = <
             identifier: "v2.session.permission.get",
             summary: "Get permission request",
             description: "Retrieve a pending permission request owned by a session.",
+          }),
+        ),
+    )
+    .add(
+      HttpApiEndpoint.post("session.permission.review", "/api/session/:sessionID/permission/:requestID/review", {
+        params: { sessionID: Session.ID, requestID: Permission.ID },
+        success: Schema.Struct({ data: Permission.Review }),
+        error: [SessionNotFoundError, PermissionNotFoundError],
+      })
+        .middleware(sessionLocationMiddleware)
+        .annotateMerge(
+          OpenApi.annotations({
+            identifier: "v2.session.permission.review",
+            summary: "Review pending permission",
+            description: "Classify a pending permission using reviewed auto mode without executing the action.",
           }),
         ),
     )

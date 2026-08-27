@@ -232,4 +232,29 @@ shell proposes command prefixes, and skills and subagents propose their
 IDs. Review the confirmation carefully and remove saved approvals that are no
 longer needed.
 
+## Reviewed auto mode
+
+The V2 TUI can classify requests that remain `ask` after configured and saved
+permission rules run. Enable it with the permission-mode command or start the
+TUI with `--auto`.
+
+The classifier receives user messages, assistant tool calls, the proposed
+action, and its resources. It does not receive assistant prose, reasoning, or
+tool results. It returns one of three decisions:
+
+- **Allow** approves only the current request.
+- **Deny** rejects the request with feedback so the agent can choose a safer
+  approach.
+- **Ask** pauses auto mode and shows the normal human approval prompt.
+
+Auto mode also pauses for human review after three consecutive denials or 20
+total denials. Pending requests from child sessions are reviewed through their
+root session, so subagent handoffs do not bypass the policy. Classifier failures
+fail closed to the normal human prompt.
+
+While auto mode is active, a separate prompt-injection probe inspects textual
+tool results and prepends a security warning to suspicious output before the
+next model step. Configure the classifier and probe with
+[`permission_auto`](/config#reviewed-auto-mode).
+
 Non-interactive clients must decide how to handle requests that require approval; explicit `deny` rules remain enforced.

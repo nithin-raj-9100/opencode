@@ -175,12 +175,16 @@ import type {
   PermissionSavedListOutput,
   PermissionSavedRemoveInput,
   PermissionSavedRemoveOutput,
+  PermissionAutoInput,
+  PermissionAutoOutput,
   PermissionCreateInput,
   PermissionCreateOutput,
   PermissionListInput,
   PermissionListOutput,
   PermissionGetInput,
   PermissionGetOutput,
+  PermissionReviewInput,
+  PermissionReviewOutput,
   PermissionReplyInput,
   PermissionReplyOutput,
   FileListInput,
@@ -1116,6 +1120,14 @@ const EndpointPermissionSavedRemove = (raw: RawClient["server.permission"]) => (
     raw["permission.saved.remove"]({ params: { id: input["id"] } }).pipe(Effect.mapError(mapClientError)),
   )
 
+const EndpointPermissionAuto = (raw: RawClient["server.permission"]) => (input: PermissionAutoInput) =>
+  preserveEffect<PermissionAutoOutput>()(
+    raw["session.permission.auto"]({
+      params: { sessionID: input["sessionID"] },
+      payload: { enabled: input["enabled"] },
+    }).pipe(Effect.mapError(mapClientError)),
+  )
+
 const EndpointPermissionCreate = (raw: RawClient["server.permission"]) => (input: PermissionCreateInput) =>
   preserveEffect<PermissionCreateOutput>()(
     raw["session.permission.create"]({
@@ -1151,6 +1163,14 @@ const EndpointPermissionGet = (raw: RawClient["server.permission"]) => (input: P
     ),
   )
 
+const EndpointPermissionReview = (raw: RawClient["server.permission"]) => (input: PermissionReviewInput) =>
+  preserveEffect<PermissionReviewOutput>()(
+    raw["session.permission.review"]({ params: { sessionID: input["sessionID"], requestID: input["requestID"] } }).pipe(
+      Effect.mapError(mapClientError),
+      Effect.map((value) => value.data),
+    ),
+  )
+
 const EndpointPermissionReply = (raw: RawClient["server.permission"]) => (input: PermissionReplyInput) =>
   preserveEffect<PermissionReplyOutput>()(
     raw["session.permission.reply"]({
@@ -1162,9 +1182,11 @@ const EndpointPermissionReply = (raw: RawClient["server.permission"]) => (input:
 const adaptGroupPermission = (raw: RawClient["server.permission"]) => ({
   request: { list: EndpointPermissionRequestList(raw) },
   saved: { list: EndpointPermissionSavedList(raw), remove: EndpointPermissionSavedRemove(raw) },
+  auto: EndpointPermissionAuto(raw),
   create: EndpointPermissionCreate(raw),
   list: EndpointPermissionList(raw),
   get: EndpointPermissionGet(raw),
+  review: EndpointPermissionReview(raw),
   reply: EndpointPermissionReply(raw),
 })
 

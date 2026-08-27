@@ -276,7 +276,9 @@ test("session lifecycle updates the terminal title and prints the epilogue after
   }
   const events = createEventStream()
   let promptRequests = 0
-  const calls = createFetch((url) => {
+  const autoRequests: boolean[] = []
+  const autoEnabled = Promise.withResolvers<void>()
+  const calls = createFetch(async (url, request) => {
     const session = {
       id: "dummy",
       title: "Demo session",
@@ -295,6 +297,17 @@ test("session lifecycle updates the terminal title and prints the epilogue after
     if (url.pathname === "/api/session/dummy/message") return json({ data: [], cursor: {} })
     if (url.pathname === "/api/session/dummy/inbox") return json({ data: [] })
     if (url.pathname === "/api/session/dummy/permission") return json({ data: [] })
+    if (url.pathname === "/api/session/dummy/permission/auto") {
+      const payload = (await request.json()) as { enabled: boolean }
+      autoRequests.push(payload.enabled)
+      if (payload.enabled && autoRequests.filter(Boolean).length === 1)
+        return json(
+          { _tag: "SessionNotFoundError", sessionID: "dummy", message: "Session not found: dummy" },
+          { status: 404 },
+        )
+      if (payload.enabled) autoEnabled.resolve()
+      return new Response(null, { status: 204 })
+    }
     if (url.pathname === "/api/session/dummy/prompt") {
       promptRequests++
       return json({ data: {} })
@@ -317,12 +330,12 @@ test("session lifecycle updates the terminal title and prints the epilogue after
         config: { get: async () => ({}), update: async () => ({}) },
         packages: { prepare: async () => ({ directory: "" }) },
         terminalHandoff: async () => ({ renderer: setup.renderer, mode: "dark", complete: () => {} }),
-        args: { sessionID: "dummy" },
+        args: { sessionID: "dummy", auto: true },
         log: () => {},
       }).pipe(Effect.provide(AppNodeBuilder.build(Global.node)), Effect.provide(FileSystem.layerNoop({}))),
     )
 
-    await initialTitleSet
+    await Promise.all([initialTitleSet, autoEnabled.promise])
     events.emit({
       id: "evt_renamed",
       created: 1,
@@ -337,6 +350,7 @@ test("session lifecycle updates the terminal title and prints the epilogue after
     expect(stdout).toContain("Renamed session")
     expect(stdout).toContain("opencode2 -s dummy")
     expect(promptRequests).toBe(0)
+    expect(autoRequests.slice(0, 2)).toEqual([true, true])
   } finally {
     process.stdout.write = originalWrite
     if (!setup.renderer.isDestroyed) setup.renderer.destroy()
@@ -1200,13 +1214,13 @@ test("configured app bindings execute settings and permission commands", async (
   setup.mockInput.pressKey("END")
   const commands = await setup.waitForFrame(
     (frame) => {
-      if (frame.includes("Disable auto-approve permissions")) return true
+      if (frame.includes("Disable reviewed auto mode")) return true
       setup.mockInput.pressArrow("up")
       return false
     },
     { maxPasses: 100 },
   )
-  expect(commands).not.toContain("Enable auto-approve permissions")
+  expect(commands).not.toContain("Enable reviewed auto mode")
 })
 
 test("ctrl+c dismisses autocomplete and shell mode before exiting", async () => {
