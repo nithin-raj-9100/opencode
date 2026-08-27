@@ -30,7 +30,7 @@ import type {
 import type { Agent } from "@opencode/schema/agent"
 import type { Model } from "@opencode/schema/model"
 import type { Content } from "@opencode/schema/tool"
-import { Cause, Context, Effect, Layer, Result, Stream } from "effect"
+import { Cause, Context, Effect, Layer, Option, Result, Stream } from "effect"
 import { HttpClientRequest, HttpClientResponse } from "effect/http"
 import { makeLocationNode } from "@opencode/util/effect/app-node"
 import { App } from "../app.js"
@@ -46,6 +46,7 @@ import { SessionSchema } from "./schema.js"
 import { SessionSystemPrompt } from "./system-prompt.js"
 import { toLLMMessages } from "./runner/to-llm-message.js"
 import type { SessionMessage } from "./message.js"
+import { PermissionAuto } from "../permission/auto.js"
 
 const IMAGE_BYTES_TRIGGER = 25 * 1024 * 1024 // 25 MiB
 const IMAGE_BYTES_TARGET = 15 * 1024 * 1024 // 15 MiB
@@ -269,6 +270,7 @@ export const layer = Layer.effect(
   Effect.gen(function* () {
     const hooks = yield* PluginHooks.Service
     const transport = yield* SessionModelTransport.Service
+    const auto = yield* Effect.serviceOption(PermissionAuto.Service)
     const app = yield* App.Service
     const prepare = Effect.fn("SessionModelRequest.prepare")(function* <
       S extends SessionRequest & { tools?: Definitions },
@@ -278,7 +280,7 @@ export const layer = Layer.effect(
       const scope = { sessionID: session.id, agent: input.agent, model: model.ref, kind }
       const tools = input.tools ?? {
         definitions: [],
-        execute: () => new Tool.Error({ message: "Tools are not available for this request" }),
+        execute: () => Effect.fail(new Tool.Error({ message: "Tools are not available for this request" })),
       }
       // Remember which tool each definition object came from. Hooks rename a tool by moving
       // its definition to a new key, so after the hook we find the tool by object identity.
@@ -444,6 +446,9 @@ export const layer = Layer.effect(
         // plugin tools do.
         executeTool: (call: Parameters<Prepared["executeTool"]>[0]) =>
           tools.execute({ ...call, definitions: hooked }).pipe(
+            Effect.flatMap((result) =>
+              Option.isSome(auto) ? auto.value.inspect(session.id, result) : Effect.succeed(result),
+            ),
             Effect.catchCauseFilter(
               (cause) => {
                 const decline = cause.reasons
@@ -476,5 +481,5 @@ export const layer = Layer.effect(
 export const node = makeLocationNode({
   service: Service,
   layer,
-  deps: [PluginHooks.node, SessionModelTransport.node, App.node],
+  deps: [PluginHooks.node, SessionModelTransport.node, PermissionAuto.node, App.node],
 })

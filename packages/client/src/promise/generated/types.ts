@@ -294,6 +294,8 @@ export type PermissionSource = { type: "tool"; messageID: string; id: string }
 
 export type PermissionSavedID = string
 
+export type PermissionReviewDecision = "allow" | "deny" | "ask"
+
 export type CommandInfo = { name: string; description?: string }
 
 export type RpcOutput = { output?: any }
@@ -834,6 +836,8 @@ export type Pty = {
   pid: number
   exitCode?: number
 }
+
+export type PermissionReview = { decision: PermissionReviewDecision; reason: string }
 
 export type PersistentPtyInfo = {
   id: PtyID
@@ -2433,6 +2437,13 @@ export type ConfigEntry =
           resource: string
           effect: "allow" | "deny"
         }>
+        permission_auto?: {
+          model?: string | { providerID: string; model: string; variant?: string }
+          environment?: string
+          block?: Array<string>
+          allow?: Array<string>
+          prompt_injection_probe?: boolean
+        }
         agents?: {
           [x: string]: {
             model?: string | { providerID: string; model: string; variant?: string }
@@ -4291,6 +4302,13 @@ export type PermissionSavedRemoveInput = { readonly id: string }
 
 export type PermissionSavedRemoveOutput = void
 
+export type PermissionAutoInput = {
+  readonly sessionID: { readonly sessionID: string }["sessionID"]
+  readonly enabled: { readonly enabled: boolean }["enabled"]
+}
+
+export type PermissionAutoOutput = void
+
 export type PermissionCreateInput = {
   readonly sessionID: string
   readonly id?: string | null | undefined
@@ -4311,6 +4329,13 @@ export type PermissionListOutput = { data: Array<PermissionRequest> }["data"]
 export type PermissionGetInput = { readonly sessionID: string; readonly requestID: string }
 
 export type PermissionGetOutput = { data: PermissionRequest }["data"]
+
+export type PermissionReviewInput = {
+  readonly sessionID: { readonly sessionID: string; readonly requestID: string }["sessionID"]
+  readonly requestID: { readonly sessionID: string; readonly requestID: string }["requestID"]
+}
+
+export type PermissionReviewOutput = { data: PermissionReview }["data"]
 
 export type PermissionReplyInput = {
   readonly sessionID: string
