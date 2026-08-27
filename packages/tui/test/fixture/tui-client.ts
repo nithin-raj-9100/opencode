@@ -174,6 +174,7 @@ export function createFetch(override?: FetchHandler, events?: ReturnType<typeof 
     if (url.pathname === "/api/experimental/migration/v1") return json({ status: "completed" })
     // The prompt footer reads the routed session's goal from the goal plugin's RPC; no fixture sets one.
     if (url.pathname === "/api/rpc/opencode.goal/get") return json({ output: null })
+    if (/^\/api\/session\/[^/]+\/permission\/auto$/.test(url.pathname)) return new Response(null, { status: 204 })
     throw new Error(`unexpected request: ${url.pathname}`)
   }
   fetch.preconnect = () => {}
