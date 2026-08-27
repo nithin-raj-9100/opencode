@@ -55,6 +55,17 @@ export const Event = { Asked, Replied, Definitions: inventory(Asked, Replied) }
 export const Effect = Schema.Literals(["allow", "deny", "ask"]).annotate({ identifier: "Permission.Effect" })
 export type Effect = typeof Effect.Type
 
+export const ReviewDecision = Schema.Literals(["allow", "deny", "ask"]).annotate({
+  identifier: "Permission.ReviewDecision",
+})
+export type ReviewDecision = typeof ReviewDecision.Type
+
+export interface Review extends Schema.Schema.Type<typeof Review> {}
+export const Review = Schema.Struct({
+  decision: ReviewDecision,
+  reason: Schema.String,
+}).annotate({ identifier: "Permission.Review" })
+
 export interface Rule extends Schema.Schema.Type<typeof Rule> {}
 export const Rule = Schema.Struct({
   action: Schema.String,

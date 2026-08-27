@@ -1173,8 +1173,7 @@ function App(props: { pair?: DialogPairCredentials; updater?: TuiInput["updater"
       },
       {
         name: "permission.mode",
-        title:
-          local.permission.mode === "auto" ? "Disable auto-approve permissions" : "Enable auto-approve permissions",
+        title: local.permission.mode === "auto" ? "Disable reviewed auto mode" : "Enable reviewed auto mode",
         category: "System",
         run: () => {
           local.permission.toggle()

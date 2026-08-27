@@ -169,12 +169,16 @@ import type {
   PermissionSavedListOutput,
   PermissionSavedRemoveInput,
   PermissionSavedRemoveOutput,
+  PermissionAutoInput,
+  PermissionAutoOutput,
   PermissionCreateInput,
   PermissionCreateOutput,
   PermissionListInput,
   PermissionListOutput,
   PermissionGetInput,
   PermissionGetOutput,
+  PermissionReviewInput,
+  PermissionReviewOutput,
   PermissionReplyInput,
   PermissionReplyOutput,
   FileReadInput,
@@ -1518,6 +1522,18 @@ export function make(options: ClientOptions) {
             requestOptions,
           ),
       },
+      auto: (input: PermissionAutoInput, requestOptions?: RequestOptions) =>
+        request<PermissionAutoOutput>(
+          {
+            method: "PUT",
+            path: `/api/session/${encodeURIComponent(input.sessionID)}/permission/auto`,
+            body: { enabled: input["enabled"] },
+            successStatus: 204,
+            declaredStatuses: [404, 400, 401],
+            empty: true,
+          },
+          requestOptions,
+        ),
       create: (input: PermissionCreateInput, requestOptions?: RequestOptions) =>
         request<{ readonly data: PermissionCreateOutput }>(
           {
@@ -1556,6 +1572,17 @@ export function make(options: ClientOptions) {
             path: `/api/session/${encodeURIComponent(input.sessionID)}/permission/${encodeURIComponent(input.requestID)}`,
             successStatus: 200,
             declaredStatuses: [400, 401, 404],
+            empty: false,
+          },
+          requestOptions,
+        ).then((value) => value.data),
+      review: (input: PermissionReviewInput, requestOptions?: RequestOptions) =>
+        request<{ readonly data: PermissionReviewOutput }>(
+          {
+            method: "POST",
+            path: `/api/session/${encodeURIComponent(input.sessionID)}/permission/${encodeURIComponent(input.requestID)}/review`,
+            successStatus: 200,
+            declaredStatuses: [404, 400, 401],
             empty: false,
           },
           requestOptions,
