@@ -1287,6 +1287,15 @@ function App() {
           dialog.clear()
         },
       },
+      {
+        name: "permission.mode",
+        title: local.permission.mode === "auto" ? "Disable reviewed auto mode" : "Enable reviewed auto mode",
+        category: "System",
+        run: () => {
+          local.permission.toggle()
+          dialog.clear()
+        },
+      },
     ].map(
       ({ name, category, ...command }) =>
         ({

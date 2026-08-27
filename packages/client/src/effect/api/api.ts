@@ -1918,6 +1918,10 @@ export type PermissionSavedRemoveOperation<E = never> = (
   input: PermissionSavedRemoveInput,
 ) => Effect.Effect<PermissionSavedRemoveOutput, E>
 
+export type PermissionAutoInput = { readonly sessionID: Session.ID; readonly enabled: boolean }
+export type PermissionAutoOutput = void
+export type PermissionAutoOperation<E = never> = (input: PermissionAutoInput) => Effect.Effect<PermissionAutoOutput, E>
+
 export type PermissionCreateInput = {
   readonly sessionID: Session.ID
   readonly id?: Permission.ID | undefined
@@ -1941,6 +1945,12 @@ export type PermissionGetInput = { readonly sessionID: Session.ID; readonly requ
 export type PermissionGetOutput = Permission.Request
 export type PermissionGetOperation<E = never> = (input: PermissionGetInput) => Effect.Effect<PermissionGetOutput, E>
 
+export type PermissionReviewInput = { readonly sessionID: Session.ID; readonly requestID: Permission.ID }
+export type PermissionReviewOutput = Permission.Review
+export type PermissionReviewOperation<E = never> = (
+  input: PermissionReviewInput,
+) => Effect.Effect<PermissionReviewOutput, E>
+
 export type PermissionReplyInput = {
   readonly sessionID: Session.ID
   readonly requestID: Permission.ID
@@ -1959,9 +1969,11 @@ export interface PermissionApi<E = never> {
     readonly update: PermissionSavedUpdateOperation<E>
     readonly remove: PermissionSavedRemoveOperation<E>
   }
+  readonly auto: PermissionAutoOperation<E>
   readonly create: PermissionCreateOperation<E>
   readonly list: PermissionListOperation<E>
   readonly get: PermissionGetOperation<E>
+  readonly review: PermissionReviewOperation<E>
   readonly reply: PermissionReplyOperation<E>
 }
 
