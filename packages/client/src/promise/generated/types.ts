@@ -326,6 +326,8 @@ export type PermissionSavedInfo = {
   time: { created: number; updated: number }
 }
 
+export type PermissionReviewDecision = "allow" | "deny" | "ask"
+
 export type FileSystemEntry = { path: string; type: "file" | "directory" }
 
 export type FileSystemWrite = { path: string }
@@ -1562,6 +1564,8 @@ export type PermissionAsked = {
   }
 }
 
+export type PermissionReview = { decision: PermissionReviewDecision; reason: string }
+
 export type PermissionReplied = {
   id: string
   created: number
@@ -2047,6 +2051,13 @@ export type ConfigEntry =
         enterprise?: { url?: string }
         username?: string
         permissions?: PermissionRuleset
+        permission_auto?: {
+          model?: string | { providerID: string; model: string; variant?: string }
+          environment?: string
+          block?: Array<string>
+          allow?: Array<string>
+          prompt_injection_probe?: boolean
+        }
         agents?: {
           [x: string]: {
             model?: string | { providerID: string; model: string; variant?: string }
@@ -6017,6 +6028,13 @@ export type PermissionSavedRemoveInput = { readonly id: { readonly id: string }[
 
 export type PermissionSavedRemoveOutput = void
 
+export type PermissionAutoInput = {
+  readonly sessionID: { readonly sessionID: string }["sessionID"]
+  readonly enabled: { readonly enabled: boolean }["enabled"]
+}
+
+export type PermissionAutoOutput = void
+
 export type PermissionCreateInput = {
   readonly sessionID: { readonly sessionID: string }["sessionID"]
   readonly id?: {
@@ -6096,6 +6114,13 @@ export type PermissionGetInput = {
 }
 
 export type PermissionGetOutput = { data: PermissionRequest }["data"]
+
+export type PermissionReviewInput = {
+  readonly sessionID: { readonly sessionID: string; readonly requestID: string }["sessionID"]
+  readonly requestID: { readonly sessionID: string; readonly requestID: string }["requestID"]
+}
+
+export type PermissionReviewOutput = { data: PermissionReview }["data"]
 
 export type PermissionReplyInput = {
   readonly sessionID: { readonly sessionID: string; readonly requestID: string }["sessionID"]
