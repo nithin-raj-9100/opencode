@@ -1,4 +1,5 @@
 import { Show } from "solid-js"
+import type { MouseEvent } from "@opentui/core"
 import { useTheme } from "../../context/theme"
 
 export interface PromptNavigatorProps {
@@ -8,8 +9,24 @@ export interface PromptNavigatorProps {
   onNext: () => void
 }
 
+export function promptNavigationIndex(current: number, total: number, direction: "prev" | "next") {
+  if (total === 0) return
+  if (direction === "prev") return Math.max(0, current - 2)
+  return Math.min(total - 1, current)
+}
+
 export function PromptNavigator(props: PromptNavigatorProps) {
   const theme = useTheme()
+  const blockSelection = (event: MouseEvent) => {
+    if (event.button !== 0) return
+    event.preventDefault()
+    event.stopPropagation()
+  }
+  const activate = (event: MouseEvent, action: () => void) => {
+    if (event.button !== 0) return
+    blockSelection(event)
+    action()
+  }
 
   return (
     <Show when={props.total > 0}>
@@ -22,8 +39,12 @@ export function PromptNavigator(props: PromptNavigatorProps) {
         top={0}
         right={1}
         zIndex={100}
+        onMouseDown={blockSelection}
+        onMouseUp={blockSelection}
       >
-        <text fg={theme.border.default}>┃</text>
+        <text fg={theme.border.default} selectable={false}>
+          ┃
+        </text>
         <box
           flexDirection="row"
           alignItems="center"
@@ -34,19 +55,21 @@ export function PromptNavigator(props: PromptNavigatorProps) {
         >
           <text
             fg={props.current > 1 ? theme.text.default : theme.text.subdued}
+            selectable={false}
             onMouseUp={(e) => {
-              if (e.button === 0) props.onPrevious()
+              activate(e, props.onPrevious)
             }}
           >
             ↑
           </text>
-          <text fg={theme.text.subdued}>
+          <text fg={theme.text.subdued} selectable={false}>
             {props.current} of {props.total}
           </text>
           <text
             fg={props.current < props.total ? theme.text.default : theme.text.subdued}
+            selectable={false}
             onMouseUp={(e) => {
-              if (e.button === 0) props.onNext()
+              activate(e, props.onNext)
             }}
           >
             ↓
