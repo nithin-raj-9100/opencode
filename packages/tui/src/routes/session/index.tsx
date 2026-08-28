@@ -106,7 +106,7 @@ import { useArgs } from "../../context/args"
 import { withTimestampedFallback } from "@opencode-ai/util/session-title-fallback"
 import { useSessionTabs } from "../../context/session-tabs"
 import { createSingleFlight } from "../../util/single-flight"
-import { PromptNavigator } from "./prompt-navigator"
+import { PromptNavigator, promptNavigationIndex } from "./prompt-navigator"
 import type { SessionInbox } from "@opencode-ai/schema/session-inbox"
 import { generateThinkingSyntax } from "./thinking-syntax"
 import { createDelayedPresence } from "../../util/delayed-presence"
@@ -751,15 +751,8 @@ export function Session(props: {
 
   const navigatePrompt = (direction: "prev" | "next") => {
     const prompts = userPrompts()
-    if (prompts.length === 0) return
-    const currentNum = currentPromptNumber()
-    if (direction === "prev") {
-      const targetIdx = Math.max(0, currentNum - 2)
-      const target = prompts[targetIdx]
-      if (target) jumpToMessage(target.id)
-      return
-    }
-    const targetIdx = Math.min(prompts.length - 1, currentNum)
+    const targetIdx = promptNavigationIndex(currentPromptNumber(), prompts.length, direction)
+    if (targetIdx === undefined) return
     const target = prompts[targetIdx]
     if (target) jumpToMessage(target.id)
   }
