@@ -164,6 +164,10 @@ import type {
   PermissionSavedListOutput,
   PermissionSavedRemoveInput,
   PermissionSavedRemoveOutput,
+  PermissionAutoDefaultsInput,
+  PermissionAutoDefaultsOutput,
+  PermissionAutoConfigInput,
+  PermissionAutoConfigOutput,
   PermissionAutoInput,
   PermissionAutoOutput,
   PermissionCreateInput,
@@ -174,6 +178,10 @@ import type {
   PermissionGetOutput,
   PermissionReviewInput,
   PermissionReviewOutput,
+  PermissionDenialsInput,
+  PermissionDenialsOutput,
+  PermissionAutoStatusInput,
+  PermissionAutoStatusOutput,
   PermissionReplyInput,
   PermissionReplyOutput,
   FileReadInput,
@@ -1509,6 +1517,30 @@ export function make(options: ClientOptions) {
             requestOptions,
           ),
       },
+      auto_defaults: (input?: PermissionAutoDefaultsInput, requestOptions?: RequestOptions) =>
+        request<PermissionAutoDefaultsOutput>(
+          {
+            method: "GET",
+            path: `/api/permission/auto/defaults`,
+            query: { location: input?.["location"] },
+            successStatus: 200,
+            declaredStatuses: [400, 401],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      auto_config: (input?: PermissionAutoConfigInput, requestOptions?: RequestOptions) =>
+        request<PermissionAutoConfigOutput>(
+          {
+            method: "GET",
+            path: `/api/permission/auto/config`,
+            query: { location: input?.["location"] },
+            successStatus: 200,
+            declaredStatuses: [400, 401],
+            empty: false,
+          },
+          requestOptions,
+        ),
       auto: (input: PermissionAutoInput, requestOptions?: RequestOptions) =>
         request<PermissionAutoOutput>(
           {
@@ -1516,7 +1548,7 @@ export function make(options: ClientOptions) {
             path: `/api/session/${encodeURIComponent(input.sessionID)}/permission/auto`,
             body: { enabled: input["enabled"] },
             successStatus: 204,
-            declaredStatuses: [404, 400, 401],
+            declaredStatuses: [400, 401, 404],
             empty: true,
           },
           requestOptions,
@@ -1569,7 +1601,29 @@ export function make(options: ClientOptions) {
             method: "POST",
             path: `/api/session/${encodeURIComponent(input.sessionID)}/permission/${encodeURIComponent(input.requestID)}/review`,
             successStatus: 200,
-            declaredStatuses: [404, 400, 401],
+            declaredStatuses: [400, 401, 404],
+            empty: false,
+          },
+          requestOptions,
+        ).then((value) => value.data),
+      denials: (input: PermissionDenialsInput, requestOptions?: RequestOptions) =>
+        request<{ readonly data: PermissionDenialsOutput }>(
+          {
+            method: "GET",
+            path: `/api/session/${encodeURIComponent(input.sessionID)}/permission/denials`,
+            successStatus: 200,
+            declaredStatuses: [400, 401, 404],
+            empty: false,
+          },
+          requestOptions,
+        ).then((value) => value.data),
+      auto_status: (input: PermissionAutoStatusInput, requestOptions?: RequestOptions) =>
+        request<{ readonly data: PermissionAutoStatusOutput }>(
+          {
+            method: "GET",
+            path: `/api/session/${encodeURIComponent(input.sessionID)}/permission/auto/status`,
+            successStatus: 200,
+            declaredStatuses: [400, 401, 404],
             empty: false,
           },
           requestOptions,
