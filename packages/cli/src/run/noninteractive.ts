@@ -132,6 +132,11 @@ export async function runNonInteractivePrompt(input: Input) {
     }
   }
 
+  const autoDenials = { consecutive: 0, total: 0 }
+  if (input.auto) {
+    await input.client.permission.auto({ sessionID: input.sessionID, enabled: true }).catch(() => {})
+  }
+
   const replyPermission = async (request: { id: string; action: string; resources: ReadonlyArray<string> }) => {
     if (!input.auto) {
       permissionRejected = true
@@ -140,17 +145,64 @@ export async function runNonInteractivePrompt(input: Input) {
         UI.Style.TEXT_NORMAL +
           `permission requested: ${request.action} (${request.resources.join(", ")}); auto-rejecting`,
       )
+      await input.client.permission
+        .reply({ sessionID: input.sessionID, requestID: request.id, reply: "reject" })
+        .catch(() => {})
+      await input.client.session.interrupt({ sessionID: input.sessionID }).catch(() => {})
+      return
+    }
+    const reviewed = await input.client.permission
+      .review({ sessionID: input.sessionID, requestID: request.id })
+      .catch(() => undefined)
+    if (!reviewed) {
+      permissionRejected = true
+      await input.client.permission
+        .reply({ sessionID: input.sessionID, requestID: request.id, reply: "reject" })
+        .catch(() => {})
+      await input.client.session.interrupt({ sessionID: input.sessionID }).catch(() => {})
+      return
+    }
+    if (reviewed.decision === "allow") {
+      autoDenials.consecutive = 0
+      await input.client.permission
+        .reply({ sessionID: input.sessionID, requestID: request.id, reply: "once" })
+        .catch(() => {})
+      return
+    }
+    if (reviewed.decision === "ask") {
+      permissionRejected = true
+      UI.println(
+        UI.Style.TEXT_WARNING_BOLD + "!",
+        UI.Style.TEXT_NORMAL + `auto mode paused: ${reviewed.reason}`,
+      )
+      await input.client.permission
+        .reply({ sessionID: input.sessionID, requestID: request.id, reply: "reject" })
+        .catch(() => {})
+      await input.client.session.interrupt({ sessionID: input.sessionID }).catch(() => {})
+      return
+    }
+    autoDenials.consecutive += 1
+    autoDenials.total += 1
+    if (autoDenials.consecutive >= 3 || autoDenials.total >= 20) {
+      permissionRejected = true
+      UI.println(
+        UI.Style.TEXT_WARNING_BOLD + "!",
+        UI.Style.TEXT_NORMAL + `auto mode stopped after repeated denials: ${reviewed.reason}`,
+      )
+      await input.client.permission
+        .reply({ sessionID: input.sessionID, requestID: request.id, reply: "reject" })
+        .catch(() => {})
+      await input.client.session.interrupt({ sessionID: input.sessionID }).catch(() => {})
+      return
     }
     await input.client.permission
       .reply({
         sessionID: input.sessionID,
         requestID: request.id,
-        reply: input.auto ? "once" : "reject",
+        reply: "reject",
+        message: `Permission for this action has been denied. Reason: ${reviewed.reason}\n\nIMPORTANT: You *may* attempt to accomplish this action using other tools that might naturally be used to do so. However, if you have been denied permission for an action that seems essential to the user's request, you must not try to work around the denial using alternative tools.`,
       })
       .catch(() => {})
-    if (!input.auto) {
-      await input.client.session.interrupt({ sessionID: input.sessionID }).catch(() => {})
-    }
   }
 
   const cancelForm = async (request: Pick<FormRequest, "id" | "sessionID">) => {

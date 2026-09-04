@@ -37,7 +37,7 @@ import { SessionSchema } from "./schema.js"
 import { SessionSystemPrompt } from "./system-prompt.js"
 import { toLLMMessages } from "./runner/to-llm-message.js"
 import type { SessionMessage } from "./message.js"
-import { PermissionAuto } from "../permission/auto.js"
+import { AUTO_PREAMBLE, PermissionAuto } from "../permission/auto.js"
 
 const IMAGE_BYTES_TRIGGER = 25 * 1024 * 1024 // 25 MiB
 const IMAGE_BYTES_TARGET = 15 * 1024 * 1024 // 15 MiB
@@ -222,6 +222,10 @@ export const layer = Layer.effect(
       // Match by identity first, then by key. Entries matching neither were invented by a
       // hook and are dropped. `t.name` stays the real name so execution can map renames back.
       const byName = new Map(tools.definitions.map((t) => [t.name, t]))
+      if (kind !== "title" && Option.isSome(auto)) {
+        const active = yield* auto.value.enabled(session.id).pipe(Effect.orElseSucceed(() => false))
+        if (active) shaped.system.push(SystemPart.make(AUTO_PREAMBLE))
+      }
       const hooked = new Map(
         Object.entries(shaped.tools ?? {}).flatMap(([name, d]) => {
           const t = given.get(d) ?? byName.get(name)
