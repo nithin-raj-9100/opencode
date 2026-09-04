@@ -104,16 +104,18 @@ export const makePermissionGroup = <
     .add(
       HttpApiEndpoint.put("session.permission.auto", "/api/session/:sessionID/permission/auto", {
         params: { sessionID: Session.ID },
+        query: LocationQuery,
         payload: Schema.Struct({ enabled: Schema.Boolean }),
         success: HttpApiSchema.NoContent,
-        error: SessionNotFoundError,
       })
-        .middleware(sessionLocationMiddleware)
+        .middleware(locationMiddleware)
+        .annotateMerge(locationQueryOpenApi)
         .annotateMerge(
           OpenApi.annotations({
             identifier: "v2.session.permission.auto",
             summary: "Set reviewed auto mode",
-            description: "Enable or disable reviewed auto mode for a session family.",
+            description:
+              "Enable or disable reviewed auto mode for a session family. Works before the session exists: enabling an unknown session pre-enables its family.",
           }),
         ),
     )
