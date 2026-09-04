@@ -4333,7 +4333,8 @@ export type PermissionAutoInput = {
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
   }["location"]
-  readonly enabled: { readonly enabled: boolean }["enabled"]
+  readonly enabled: { readonly enabled: boolean; readonly source?: "mount" | "sync" | "cleanup" | undefined }["enabled"]
+  readonly source?: { readonly enabled: boolean; readonly source?: "mount" | "sync" | "cleanup" | undefined }["source"]
 }
 
 export type PermissionAutoOutput = void
