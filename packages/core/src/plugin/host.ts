@@ -33,6 +33,7 @@ import { Worktree } from "../worktree.js"
 import { WorktreeStrategies } from "../worktree/strategies.js"
 import { Generate } from "../generate.js"
 import { Permission } from "../permission.js"
+import { PermissionAuto } from "../permission/auto.js"
 import { PluginHooks } from "./hooks.js"
 import type { Interface } from "../plugin.js"
 import { LayerNode } from "@opencode/util/effect/layer-node"
@@ -575,6 +576,7 @@ export const requirements = LayerNode.group([
   WorktreeStrategies.node,
   Generate.node,
   Permission.node,
+  PermissionAuto.node,
   PluginHooks.node,
   Session.node,
   PersistentPty.node,
