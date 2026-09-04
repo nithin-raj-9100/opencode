@@ -85,6 +85,15 @@ describe("toSessionError", () => {
       type: "tool.execution",
       message: "failed",
     })
+    const corrected = new Permission.CorrectedError({ feedback: "Blocked by classifier: force push" })
+    expect(toSessionError(corrected)).toEqual({
+      type: "permission.auto_denied",
+      message: "Blocked by classifier: force push",
+    })
+    expect(toSessionError(new ToolFailure({ message: "Unable to execute command: git push", error: corrected }))).toEqual({
+      type: "permission.auto_denied",
+      message: "Blocked by classifier: force push",
+    })
   })
 
   test("preserves provider HTTP status without exposing runtime diagnostics", () => {

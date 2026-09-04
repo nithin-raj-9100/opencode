@@ -1575,6 +1575,15 @@ export type PermissionReplied = {
   data: { sessionID: SessionID; requestID: PermissionID; reply: PermissionReply }
 }
 
+export type PermissionAutoDenied = {
+  id: EventID
+  created: number
+  metadata?: { [x: string]: any }
+  type: "permission.auto_denied"
+  location?: LocationRef
+  data: { sessionID: SessionID; requestID: PermissionID; action: string; resources: Array<string>; reason: string }
+}
+
 export type PluginUpdated = {
   id: EventID
   created: number
@@ -2594,6 +2603,7 @@ export type V2Event =
   | ReferenceUpdated
   | PermissionAsked
   | PermissionReplied
+  | PermissionAutoDenied
   | PluginUpdated
   | ProjectUpdated
   | WorktreeUpdated

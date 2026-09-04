@@ -155,7 +155,6 @@ export async function runNonInteractivePrompt(input: Input) {
     return result
   }
 
-  const autoDenials = { consecutive: 0, total: 0 }
   if (input.auto) {
     await input.client.permission.auto({ sessionID: input.sessionID, enabled: true }).catch(() => {})
   }
@@ -165,6 +164,7 @@ export async function runNonInteractivePrompt(input: Input) {
     sessionID: string
     action: string
     resources: ReadonlyArray<string>
+    message?: string
   }) => {
     // Nobody can approve here. Outside V1 compatibility, reject with feedback so the tool fails
     // as ordinary model-visible output and the model continues without the action.
@@ -189,58 +189,15 @@ export async function runNonInteractivePrompt(input: Input) {
       }
       return
     }
-    const reviewed = await input.client.permission
-      .review({ sessionID: request.sessionID, requestID: request.id })
-      .catch(() => undefined)
-    if (!reviewed) {
-      permissionRejected = true
-      await input.client.permission
-        .reply({ sessionID: request.sessionID, requestID: request.id, decision: "reject" })
-        .catch(() => {})
-      await input.client.session.interrupt({ sessionID: input.sessionID }).catch(() => {})
-      return
-    }
-    if (reviewed.decision === "allow") {
-      autoDenials.consecutive = 0
-      await input.client.permission
-        .reply({ sessionID: request.sessionID, requestID: request.id, decision: "once" })
-        .catch(() => {})
-      return
-    }
-    if (reviewed.decision === "ask") {
-      permissionRejected = true
-      UI.println(
-        UI.Style.TEXT_WARNING_BOLD + "!",
-        UI.Style.TEXT_NORMAL + `auto mode paused: ${reviewed.reason}`,
-      )
-      await input.client.permission
-        .reply({ sessionID: request.sessionID, requestID: request.id, decision: "reject" })
-        .catch(() => {})
-      await input.client.session.interrupt({ sessionID: input.sessionID }).catch(() => {})
-      return
-    }
-    autoDenials.consecutive += 1
-    autoDenials.total += 1
-    if (autoDenials.consecutive >= 3 || autoDenials.total >= 20) {
-      permissionRejected = true
-      UI.println(
-        UI.Style.TEXT_WARNING_BOLD + "!",
-        UI.Style.TEXT_NORMAL + `auto mode stopped after repeated denials: ${reviewed.reason}`,
-      )
-      await input.client.permission
-        .reply({ sessionID: request.sessionID, requestID: request.id, decision: "reject" })
-        .catch(() => {})
-      await input.client.session.interrupt({ sessionID: input.sessionID }).catch(() => {})
-      return
-    }
+    permissionRejected = true
+    UI.println(
+      UI.Style.TEXT_WARNING_BOLD + "!",
+      UI.Style.TEXT_NORMAL + `auto mode paused: ${request.message ?? "needs your review"}`,
+    )
     await input.client.permission
-      .reply({
-        sessionID: request.sessionID,
-        requestID: request.id,
-        decision: "reject",
-        message: `Permission for this action has been denied. Reason: ${reviewed.reason}\n\nIMPORTANT: You *may* attempt to accomplish this action using other tools that might naturally be used to do so. However, if you have been denied permission for an action that seems essential to the user's request, you must not try to work around the denial using alternative tools.`,
-      })
+      .reply({ sessionID: request.sessionID, requestID: request.id, decision: "reject" })
       .catch(() => {})
+    await input.client.session.interrupt({ sessionID: input.sessionID }).catch(() => {})
   }
 
   const cancelForm = async (request: Pick<FormRequest, "id" | "sessionID" | "metadata">) => {
@@ -276,6 +233,13 @@ export async function runNonInteractivePrompt(input: Input) {
       }
       const event = next.value
 
+      if (event.type === "permission.auto_denied" && submitted && (await ownsSession(event.data.sessionID))) {
+        UI.println(
+          UI.Style.TEXT_WARNING_BOLD + "!",
+          UI.Style.TEXT_NORMAL + `blocked by classifier: ${event.data.reason}`,
+        )
+        continue
+      }
       if (event.type === "permission.asked" && submitted && (await ownsSession(event.data.sessionID))) {
         await replyPermission(event.data)
         continue
