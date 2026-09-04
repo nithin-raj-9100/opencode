@@ -187,8 +187,9 @@ See the [permissions guide](/permissions) for rule matching and available action
 
 ### Reviewed auto mode
 
-Configure the classifier used when reviewed auto mode handles permission prompts
-in the TUI. The selected model must be available to the background service.
+Configure the classifier used when reviewed auto mode is active. Reads of any
+file or folder skip the classifier; shell, out-of-project edits, and subagents
+are classified. The selected model must be available to the background service.
 
 ```jsonc
 {

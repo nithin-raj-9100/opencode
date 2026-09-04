@@ -981,6 +981,15 @@ export type ReferenceUpdated = {
   data: {}
 }
 
+export type PermissionAutoDenied = {
+  id: string
+  created: number
+  metadata?: { [x: string]: any }
+  type: "permission.auto_denied"
+  location?: LocationRef
+  data: { sessionID: string; requestID: string; action: string; resources: Array<string>; reason: string }
+}
+
 export type PluginUpdated = {
   id: string
   created: number
@@ -2318,6 +2327,7 @@ export type V2Event =
   | ReferenceUpdated
   | PermissionAsked
   | PermissionReplied
+  | PermissionAutoDenied
   | PluginUpdated
   | ProjectUpdated
   | WorktreeUpdated

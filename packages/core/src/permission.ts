@@ -1,7 +1,7 @@
 export * as Permission from "./permission.js"
 
 import { makeLocationNode } from "@opencode-ai/util/effect/app-node"
-import { Context, Deferred, Effect, Layer, Schema } from "effect"
+import { Context, Deferred, Effect, Layer, Option, Schema } from "effect"
 import { Permission } from "@opencode-ai/schema/permission"
 import { Bus } from "./bus.js"
 import { Location } from "./location.js"
@@ -12,6 +12,7 @@ import { SessionSchema } from "./session/schema.js"
 import { SessionStore } from "./session/store.js"
 import { Wildcard } from "./util/wildcard.js"
 import { PermissionSaved } from "./permission/saved.js"
+import { PermissionAuto } from "./permission/auto.js"
 import { PermissionAutoState } from "./permission/state.js"
 import { PluginHooks } from "./plugin/hooks.js"
 
@@ -67,7 +68,11 @@ export class DeclinedError extends Schema.TaggedError<DeclinedError>()("Permissi
 
 export class CorrectedError extends Schema.TaggedError<CorrectedError>()("Permission.CorrectedError", {
   feedback: Schema.String,
-}) {}
+}) {
+  override get message() {
+    return this.feedback
+  }
+}
 
 export class BlockedError extends Schema.TaggedError<BlockedError>()("Permission.BlockedError", {
   rules: Permission.Ruleset,
@@ -129,6 +134,7 @@ const layer = Layer.effect(
     const saved = yield* PermissionSaved.Service
     const hooks = yield* PluginHooks.Service
     const autostate = yield* PermissionAutoState.Service
+    const auto = yield* Effect.serviceOption(PermissionAuto.Service)
     const config = yield* Config.Service
     const pending = new Map<ID, Pending>()
 
@@ -159,10 +165,8 @@ const layer = Layer.effect(
       },
     )
 
-    const autoStrippedSaved = Effect.fnUntraced(function* (sessionID: SessionSchema.ID) {
+    const autoStrippedSaved = Effect.fnUntraced(function* (classifyAll: boolean, active: boolean) {
       const items = yield* saved.list({ projectID: location.project.id })
-      const root = yield* rootID(sessionID)
-      const active = yield* autostate.isActive(root)
       if (!active) {
         return items.map(
           (item): Permission.Rule => ({
@@ -172,12 +176,6 @@ const layer = Layer.effect(
           }),
         )
       }
-      const entries = yield* config.entries()
-      const scoped = entries.filter((entry) => {
-        if (entry.type !== "document" || !entry.path) return true
-        return !entry.path.startsWith(`${location.directory}/`)
-      })
-      const classifyAll = Config.latest(scoped, "permission_auto")?.classifyAllShell === true
       return items
         .filter((item) => !PermissionAutoState.shouldStripAllow(item.action, item.resource, classifyAll))
         .map(
@@ -197,12 +195,54 @@ const layer = Layer.effect(
       return rules.filter((rule) => Wildcard.match(input.action, rule.action))
     }
 
+    function matchRule(action: string, resource: string, rules: Permission.Ruleset) {
+      const rule = rules.findLast(
+        (item) => Wildcard.match(action, item.action) && Wildcard.match(resource, item.resource),
+      )
+      if (!rule) return { effect: "ask" as const, implicit: true, action, resource: "*" }
+      return { effect: rule.effect, implicit: false, action: rule.action, resource: rule.resource }
+    }
+
+    const autoClassifyAll = Effect.fnUntraced(function* () {
+      const entries = yield* config.entries()
+      const scoped = entries.filter((entry) => {
+        if (entry.type !== "document" || !entry.path) return true
+        return !entry.path.startsWith(`${location.directory}/`)
+      })
+      return Config.latest(scoped, "permission_auto")?.classifyAllShell === true
+    })
+
     const evaluateInput = Effect.fnUntraced(function* (input: AssertInput) {
       const rules = yield* configured(input.sessionID, input.agent)
-      if (denied(input, rules)) return { effect: "deny" as const, rules }
-      const all = [...rules, ...(yield* autoStrippedSaved(input.sessionID))]
-      const effects = input.resources.map((resource) => evaluate(input.action, resource, all).effect)
-      const effect: Permission.Effect = effects.includes("ask") ? "ask" : "allow"
+      if (denied(input, rules)) return { effect: "deny" as const, rules, classify: false }
+      const root = yield* rootID(input.sessionID)
+      const autoActive = yield* autostate.isActive(root)
+      const classifyAll = autoActive ? yield* autoClassifyAll() : false
+      const configuredForEval = autoActive
+        ? rules.filter(
+            (rule) =>
+              rule.effect !== "allow" || !PermissionAutoState.shouldStripAllow(rule.action, rule.resource, classifyAll),
+          )
+        : rules
+      const all = [...configuredForEval, ...(yield* autoStrippedSaved(classifyAll, autoActive))]
+      const matches = input.resources.map((resource) => matchRule(input.action, resource, all))
+      const gated = autoActive
+        ? PermissionAuto.isCriticalRemoval(input.action, input.resources)
+          ? {
+              effect: "deny" as const,
+              classify: false,
+              message: PermissionAuto.denyFeedback("Critical-path removal denied without classifier review"),
+            }
+          : PermissionAuto.autoGate({
+              action: input.action,
+              resources: input.resources,
+              directory: location.directory,
+              matches,
+            })
+        : {
+            effect: (matches.some((match) => match.effect === "ask") ? "ask" : "allow") as Permission.Effect,
+            classify: false,
+          }
       const event = yield* hooks.trigger("permission", "evaluate", {
         sessionID: input.sessionID,
         agent: input.agent,
@@ -210,9 +250,14 @@ const layer = Layer.effect(
         resources: input.resources,
         metadata: input.metadata,
         source: input.source,
-        effect,
+        effect: gated.effect,
       })
-      return { effect: event.effect, message: event.message, rules: all }
+      return {
+        effect: event.effect,
+        message: event.message ?? ("message" in gated ? gated.message : undefined),
+        rules: all,
+        classify: gated.classify && event.effect === "ask",
+      }
     })
 
     function request(input: AssertInput, message?: string): Request {
@@ -264,6 +309,30 @@ const layer = Layer.effect(
               })
             }
             if (result.effect === "allow") return
+            if (result.classify && Option.isSome(auto)) {
+              const proposed = request(input, result.message)
+              const reviewed = yield* auto.value.review(proposed)
+              if (reviewed.decision === "allow") return
+              if (reviewed.decision === "deny") {
+                yield* bus.publish(Permission.Event.AutoDenied, {
+                  sessionID: proposed.sessionID,
+                  requestID: proposed.id,
+                  action: proposed.action,
+                  resources: proposed.resources,
+                  reason: reviewed.reason,
+                })
+                return yield* new CorrectedError({ feedback: PermissionAuto.denyFeedback(reviewed.reason) })
+              }
+              const item = yield* create({ ...proposed, message: reviewed.reason }, input.agent)
+              return yield* restore(Deferred.await(item.deferred)).pipe(
+                Effect.catchTag("Permission.DeclinedError", (error) => Effect.die(error)),
+                Effect.ensuring(
+                  Effect.sync(() => {
+                    pending.delete(item.request.id)
+                  }),
+                ),
+              )
+            }
             const item = yield* create(request(input, result.message), input.agent)
             return yield* restore(Deferred.await(item.deferred)).pipe(
               // Deliberate defect tunnel: leaves wrap execution in blanket `mapError`, which

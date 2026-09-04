@@ -21,6 +21,7 @@ export class ModelSelectionError extends Schema.TaggedError<ModelSelectionError>
 export class UnavailableError extends Schema.TaggedError<UnavailableError>()("Generate.UnavailableError", {
   message: Schema.String,
   service: Schema.optional(Schema.String),
+  retryAfterMs: Schema.optional(Schema.Number),
 }) {}
 
 export type Error = ModelSelectionError | UnavailableError
@@ -67,13 +68,17 @@ export const layer = Layer.effect(
           ...(input.promptCacheKey ? { promptCacheKey: input.promptCacheKey } : {}),
         }),
       ).pipe(
-        Effect.mapError(
-          (error: AIError) =>
-            new UnavailableError({
-              message: error.message,
-              service: resolved.ref.providerID,
-            }),
-        ),
+        Effect.mapError((error: AIError) => {
+          const retryAfterMs =
+            error.reason._tag === "RateLimit" || error.reason._tag === "ProviderInternal"
+              ? error.reason.retryAfterMs
+              : undefined
+          return new UnavailableError({
+            message: error.message,
+            service: resolved.ref.providerID,
+            ...(retryAfterMs === undefined ? {} : { retryAfterMs }),
+          })
+        }),
       )
       return response.text
     })

@@ -60,6 +60,7 @@ export const Definitions = {
   "server.pair": keybind("none", "Pair device"),
   "service.restart": keybind("none", "Restart service"),
   "permission.mode": keybind("none", "Toggle reviewed auto mode"),
+  "permission.denials": keybind("none", "Show recently denied auto mode actions"),
   "diff.open": keybind("none", "Open diff viewer"),
   "diff.close": keybind("escape,q", "Close diff viewer"),
   "diff.down": keybind("j,down", "Move diff viewer down"),

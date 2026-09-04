@@ -234,32 +234,43 @@ longer needed.
 
 ## Reviewed auto mode
 
-The V2 TUI can classify requests that remain `ask` after configured and saved
-permission rules run. Enable it with the permission-mode command or start the
-TUI with `--auto`.
+Reviewed auto mode classifies consequential tool calls with an isolated
+side query while the agent keeps working. Enable it with the permission-mode
+command or start the TUI with `--auto`.
+
+Reads of any file or folder — including `.env`, `.git`, and home paths such as
+`~/.zshrc` — are allowed by default. That covers `read`, `glob`, `grep`,
+directory listings, and the `external_directory` gate those tools use for
+home paths. Web fetches and web searches skip the classifier too. In-project
+file edits are auto-approved. Shell commands, out-of-project edits, and
+subagent launches go to the classifier even when agent rules would otherwise
+allow them. A configured `deny` still wins.
 
 The classifier receives user messages, assistant tool calls, the proposed
 action, and its resources. It does not receive assistant prose, reasoning, or
 tool results. It returns one of three decisions:
 
 - **Allow** approves only the current request.
-- **Deny** rejects the request with feedback so the agent can choose a safer
-  approach.
-- **Ask** pauses auto mode and shows the normal human approval prompt.
+- **Deny** rejects the request with `Blocked by classifier` feedback so the
+  agent can choose a safer approach. Do not retry or route around that denial.
+- **Ask** shows the normal human approval prompt and keeps auto mode running.
 
-Auto mode also pauses for human review after three consecutive denials or 20
-total denials. Pending requests from child sessions are reviewed through their
-root session, so subagent handoffs do not bypass the policy. Classifier failures
-fail closed to the normal human prompt.
+After three consecutive denials or 20 total denials, auto mode keeps running
+but sends remaining consequential actions to you instead of the classifier.
+Pending requests from child sessions are reviewed through their root session.
+Classifier API failures deny when the iron gate is closed and fall back to a
+human prompt when it is open.
 
-While auto mode is active, broad shell allow rules are suspended so commands
-reach the classifier, and read-only tools skip it without a model call.
-Critical removals such as `rm -rf /` are denied deterministically.
+While auto mode is active, broad allow rules such as `* / *` and `shell *` are
+suspended so commands reach the classifier. Narrow allow rules such as
+`shell: npm test` still skip it. Critical removals such as `rm -rf /` are
+denied deterministically.
 
 While auto mode is active, a separate prompt-injection probe inspects textual
 tool results and prepends a security warning to suspicious output before the
 next model step. Configure the classifier and probe with
 [`permission_auto`](/config#reviewed-auto-mode).
 
-`opencode run --auto` classifies each request the same way and aborts the run
-after repeated denials. Explicit `deny` rules remain enforced.
+`opencode run --auto` classifies each request the same way. Classifier denials
+are printed and the run continues. Human escalations abort the run. Explicit
+`deny` rules remain enforced.

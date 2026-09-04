@@ -1284,6 +1284,7 @@ export async function createSessionTransport(input: StreamInput): Promise<Sessio
       syncBlockers()
       return
     }
+    if (event.type === "permission.auto_denied") return
     if (event.type === "form.created") {
       if (!state.forms.some((item) => item.id === event.data.form.id)) state.forms.push(event.data.form)
       syncBlockers()

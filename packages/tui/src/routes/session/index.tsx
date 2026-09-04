@@ -67,6 +67,8 @@ import { errorMessage } from "../../util/error"
 import { useToast } from "../../ui/toast"
 import stripAnsi from "strip-ansi"
 import { usePromptRef } from "../../context/prompt"
+import { useEvent } from "../../context/event"
+import { emptyPrompt } from "../../prompt/history"
 import { projectedPromptInput } from "../../prompt/codec"
 import { deduplicateVisibleImages } from "../../prompt/attachment"
 import { useEpilogue } from "../../context/epilogue"
@@ -178,6 +180,7 @@ export function Session(props: {
   const config = configState.data
   const theme = useTheme()
   const promptRef = usePromptRef()
+  const event = useEvent()
   const session = createMemo(() => data.session.get(route.sessionID))
   const messages = () => data.session.message.list(route.sessionID)
   const messageIndexes = createMemo(() => new Map(messages().map((message, index) => [message.id, index])))
@@ -213,11 +216,6 @@ export function Session(props: {
       (sessionID) => data.session.permission.list(sessionID) ?? [],
     )
   })
-  const promptedPermissions = createMemo(() =>
-    local.permission.mode === "auto"
-      ? permissions().filter((request) => manualAsk.has(request.id))
-      : permissions(),
-  )
   const forms = createMemo(() => {
     const global = data.session.form.list("global", location()) ?? []
     if (session()?.parentID) return global
@@ -241,7 +239,7 @@ export function Session(props: {
   createEffect(() => {
     if (props.promptMuted && composer.open) setComposer("open", false)
   })
-  const disabled = createMemo(() => promptedPermissions().length > 0 || forms().length > 0)
+  const disabled = createMemo(() => permissions().length > 0 || forms().length > 0)
 
   const lastAssistant = createMemo(() => {
     return messages().findLast((x) => x.type === "assistant")
@@ -336,64 +334,21 @@ export function Session(props: {
       .catch(() => {})
   })
   const autoReviewed = new Set<string>()
-  const manualAsk = new Set<string>()
-  const autoDenials = { consecutive: 0, total: 0 }
   createEffect(() => {
     if (local.permission.mode !== "auto") return
-    const pending = new Set(permissions().map((request) => request.id))
-    for (const id of manualAsk) if (!pending.has(id)) manualAsk.delete(id)
     permissions().forEach((request) => {
-      if (autoReviewed.has(request.id) || manualAsk.has(request.id)) return
+      if (autoReviewed.has(request.id) || !request.message) return
       autoReviewed.add(request.id)
-      void client.api.permission
-        .review({ sessionID: request.sessionID, requestID: request.id })
-        .then((reviewed) => {
-          if (local.permission.mode !== "auto") return
-          if (reviewed.decision === "ask") {
-            // Escalate only this action to a human prompt and keep auto mode
-            // running for everything else. Leaving auto mode entirely is
-            // reserved for repeated denials, review failures, or an explicit
-            // toggle.
-            autoReviewed.delete(request.id)
-            manualAsk.add(request.id)
-            toast.show({ variant: "warning", message: `Auto mode needs your review: ${reviewed.reason}` })
-            return
-          }
-          if (reviewed.decision === "allow") {
-            autoDenials.consecutive = 0
-            return data.session.permission.reply({
-              sessionID: request.sessionID,
-              reply: "once",
-              requestID: request.id,
-            })
-          }
-
-          autoDenials.consecutive += 1
-          autoDenials.total += 1
-          if (autoDenials.consecutive >= 3 || autoDenials.total >= 20) {
-            autoReviewed.delete(request.id)
-            local.permission.set("normal")
-            toast.show({
-              variant: "warning",
-              message: `Auto mode stopped after repeated denials: ${reviewed.reason}`,
-            })
-            return
-          }
-          return data.session.permission.reply({
-            sessionID: request.sessionID,
-            reply: "reject",
-            requestID: request.id,
-            message: `Permission for this action has been denied. Reason: ${reviewed.reason}\n\nIMPORTANT: You *may* attempt to accomplish this action using other tools that might naturally be used to do so. However, if you have been denied permission for an action that seems essential to the user's request, you must not try to work around the denial using alternative tools.`,
-          })
-        })
-        .catch((error) => {
-          autoReviewed.delete(request.id)
-          if (local.permission.mode !== "auto") return
-          local.permission.set("normal")
-          toast.show({ variant: "warning", message: `Auto mode paused: ${errorMessage(error)}` })
-        })
+      toast.show({ variant: "warning", message: `Auto mode needs your review: ${request.message}` })
     })
   })
+  onCleanup(
+    event.on("permission.auto_denied", (denied) => {
+      const target = denied.data.sessionID
+      if (target !== route.sessionID && data.session.get(target)?.parentID !== route.sessionID) return
+      toast.show({ variant: "warning", message: `Blocked by classifier: ${denied.data.reason}` })
+    }),
+  )
   const editor = useEditorContext()
   const [rowsSynced, setRowsSynced] = createSignal(false)
   const rows = createSessionRows(
@@ -1019,6 +974,48 @@ export function Session(props: {
       },
     },
     {
+      title: "Recently denied by auto mode",
+      id: "permission.denials",
+      group: "Session",
+      slash: { name: "denials" },
+      run: () => {
+        void client.api.permission
+          .denials({ sessionID: route.sessionID })
+          .then((items) => {
+            if (items.length === 0) {
+              toast.show({ message: "No auto mode denials in this session", variant: "warning" })
+              dialog.clear()
+              return
+            }
+            dialog.replace(() => (
+              <DialogSelect
+                title="Recently denied"
+                options={items.toReversed().map((item) => ({
+                  title: `${item.request.action} ${item.request.resources.join(" ")}`.trim(),
+                  description: item.review.reason,
+                  value: item,
+                }))}
+                onSelect={(option) => {
+                  const item = option.value
+                  promptRef.current?.set({
+                    ...emptyPrompt(),
+                    text: [
+                      "I explicitly approve this previously blocked action. Please retry it now:",
+                      `${item.request.action} ${item.request.resources.join(" ")}`.trim(),
+                      "",
+                      `It was blocked because: ${item.review.reason}`,
+                    ].join("\n"),
+                  })
+                  promptRef.current?.focus()
+                  dialog.clear()
+                }}
+              />
+            ))
+          })
+          .catch((error) => toast.show({ message: errorMessage(error), variant: "error" }))
+      },
+    },
+    {
       title: "Compact session",
       id: "session.compact",
       group: "Session",
@@ -1533,10 +1530,10 @@ export function Session(props: {
               />
               <Switch>
                 <Match when={composer.open || (!!session()?.parentID && forms().length === 0)}>{null}</Match>
-                <Match when={promptedPermissions().length > 0}>
-                  <Show when={promptedPermissions()[0]?.id} keyed>
+                <Match when={permissions().length > 0}>
+                  <Show when={permissions()[0]?.id} keyed>
                     {(_) => {
-                      const request = promptedPermissions()[0]
+                      const request = permissions()[0]
                       return request ? (
                         <PermissionPrompt request={request} directory={session()?.location.directory} />
                       ) : null
@@ -2962,9 +2959,7 @@ export function genericToolSummary(tool: string, input: Record<string, unknown>)
 function useToolPermission(part: () => SessionMessageAssistantTool | undefined) {
   const ctx = use()
   const data = useData()
-  const local = useLocal()
   return createMemo(() => {
-    if (local.permission.mode === "auto") return false
     const request = data.session.permission.list(ctx.sessionID)?.[0]
     return request?.source?.type === "tool" && request.source.id === part()?.id
   })
@@ -2999,7 +2994,9 @@ function InlineTool(props: {
       error()?.includes("QuestionRejectedError") ||
       error()?.includes("rejected permission") ||
       error()?.includes("specified a rule") ||
-      error()?.includes("user dismissed"),
+      error()?.includes("user dismissed") ||
+      error()?.includes("Blocked by classifier") ||
+      error()?.includes("permission.auto_denied"),
   )
 
   const failed = createMemo(() => Boolean(error() && !denied()))

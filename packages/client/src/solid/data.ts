@@ -1114,6 +1114,8 @@ export function createData(config: CreateDataInput) {
       case "permission.replied":
         removePermission(event.data.sessionID, event.data.requestID)
         return
+      case "permission.auto_denied":
+        return
       case "form.replied":
       case "form.cancelled":
         removeForm(event.data.sessionID, event.data.id, event.location)
