@@ -324,6 +324,9 @@ const layer = Layer.effect(
               if (reviewed) {
                 if (reviewed.decision === "allow") return
                 if (reviewed.decision === "deny") {
+                  if (PermissionAuto.isUnevaluated(reviewed)) {
+                    return yield* new CorrectedError({ feedback: PermissionAuto.unevaluatedFeedback(reviewed.reason) })
+                  }
                   yield* bus.publish(Permission.Event.AutoDenied, {
                     sessionID: proposed.sessionID,
                     requestID: proposed.id,

@@ -7,6 +7,7 @@ import { LayerNode } from "@opencode-ai/util/effect/layer-node"
 import { Bus } from "@opencode-ai/core/bus"
 import { Location } from "@opencode-ai/core/location"
 import { Permission } from "@opencode-ai/core/permission"
+import { PermissionAuto } from "@opencode-ai/core/permission/auto"
 import { PermissionAutoState } from "@opencode-ai/core/permission/state"
 import { PermissionTable } from "@opencode-ai/core/permission/sql"
 import { PermissionSaved } from "@opencode-ai/core/permission/saved"
@@ -245,7 +246,7 @@ describe("Permission", () => {
       const service = yield* Permission.Service
       expect(
         yield* service.ask(
-          assertion({ id: Permission.ID.create("per_auto_shell"), action: "shell", resources: ["git status"] }),
+          assertion({ id: Permission.ID.create("per_auto_shell"), action: "shell", resources: ["git push origin main"] }),
         ),
       ).toMatchObject({
         effect: "ask",
@@ -302,8 +303,8 @@ describe("Permission", () => {
       const service = yield* Permission.Service
       yield* service.assert(assertion({ action: "shell", resources: ["cat README.md"] }))
       expect(classified).toEqual([])
-      yield* service.assert(assertion({ action: "shell", resources: ["git status"] }))
-      expect(classified).toEqual(["git status"])
+      yield* service.assert(assertion({ action: "shell", resources: ["git push origin main"] }))
+      expect(classified).toEqual(["git push origin main"])
       expect(yield* service.list()).toEqual([])
     }),
   )
@@ -317,9 +318,76 @@ describe("Permission", () => {
       )
       yield* autostate.activate(Session.ID.make("ses_test"))
       const service = yield* Permission.Service
-      const error = yield* service.assert(assertion({ action: "shell", resources: ["git status"] })).pipe(Effect.flip)
+      const error = yield* service.assert(assertion({ action: "shell", resources: ["git push origin main"] })).pipe(Effect.flip)
       expect(error).toBeInstanceOf(Permission.CorrectedError)
       expect(error.message).toContain("Blocked by classifier")
+      expect(error.message).toContain("Do not retry")
+      expect(yield* service.list()).toEqual([])
+    }),
+  )
+
+  it.effect("does not prompt when the classifier returns no verdict", () =>
+    Effect.gen(function* () {
+      yield* setup([{ action: "shell", resource: "*", effect: "ask" }])
+      const autostate = yield* PermissionAutoState.Service
+      yield* autostate.bindClassifier(() => Effect.succeed(PermissionAuto.unevaluated()))
+      yield* autostate.activate(Session.ID.make("ses_test"))
+      const service = yield* Permission.Service
+      const error = yield* service
+        .assert(assertion({ action: "shell", resources: ["npx prisma db drop"] }))
+        .pipe(Effect.flip)
+      expect(error).toBeInstanceOf(Permission.CorrectedError)
+      expect(error.message).toContain("could not evaluate")
+      expect(error.message).not.toContain("Do not retry")
+      expect(yield* service.list()).toEqual([])
+    }),
+  )
+
+  it.effect("auto-allows CLI help in auto mode without the classifier", () =>
+    Effect.gen(function* () {
+      yield* setup([{ action: "shell", resource: "*", effect: "ask" }])
+      const autostate = yield* PermissionAutoState.Service
+      let classified = 0
+      yield* autostate.bindClassifier(() => {
+        classified++
+        return Effect.succeed({ decision: "deny" as const, reason: "should not run" })
+      })
+      yield* autostate.activate(Session.ID.make("ses_test"))
+      const service = yield* Permission.Service
+      yield* service.assert(
+        assertion({
+          action: "shell",
+          resources: [
+            'npx wrangler --help 2>&1 | head -n 80; echo "==="; npx wrangler workers --help 2>&1 | head -n 60',
+          ],
+        }),
+      )
+      expect(classified).toBe(0)
+      expect(yield* service.list()).toEqual([])
+    }),
+  )
+
+  it.effect("auto-allows read-only shell in auto mode without the classifier", () =>
+    Effect.gen(function* () {
+      yield* setup([{ action: "shell", resource: "*", effect: "ask" }])
+      const autostate = yield* PermissionAutoState.Service
+      let classified = 0
+      yield* autostate.bindClassifier(() => {
+        classified++
+        return Effect.succeed({ decision: "deny" as const, reason: "should not run" })
+      })
+      yield* autostate.activate(Session.ID.make("ses_test"))
+      const service = yield* Permission.Service
+      yield* service.assert(
+        assertion({
+          action: "shell",
+          resources: [
+            'npx wrangler d1 execute chairpe-prod --remote --command "SELECT s.name FROM salons s JOIN invoices i ON i.salon_id = s.id GROUP BY s.id"',
+          ],
+        }),
+      )
+      yield* service.assert(assertion({ action: "shell", resources: ["kubectl get pods"] }))
+      expect(classified).toBe(0)
       expect(yield* service.list()).toEqual([])
     }),
   )

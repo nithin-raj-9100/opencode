@@ -276,7 +276,10 @@ export function Session(props: {
     if (!session()) return
     // Read connection status so a server restart re-runs the sync and
     // re-enables server-side auto mode, whose in-memory state was wiped.
-    if (client.connection.status() !== "connected") return
+    if (client.connection.status() !== "connected") {
+      autoSent = undefined
+      return
+    }
     const enabled = local.permission.mode === "auto"
     const generation = ++autoSync
     if (!enabled && !autoRequested) return
