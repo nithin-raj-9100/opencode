@@ -1561,7 +1561,7 @@ export function make(options: ClientOptions) {
             method: "PUT",
             path: `/api/session/${encodeURIComponent(input.sessionID)}/permission/auto`,
             query: { location: input["location"] },
-            body: { enabled: input["enabled"] },
+            body: { enabled: input["enabled"], source: input["source"] },
             successStatus: 204,
             declaredStatuses: [400, 401],
             empty: true,
