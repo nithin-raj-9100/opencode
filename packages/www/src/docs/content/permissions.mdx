@@ -262,9 +262,11 @@ Classifier API failures deny when the iron gate is closed and fall back to a
 human prompt when it is open.
 
 While auto mode is active, broad allow rules such as `* / *` and `shell *` are
-suspended so commands reach the classifier. Narrow allow rules such as
-`shell: npm test` still skip it. Critical removals such as `rm -rf /` are
-denied deterministically.
+suspended so commands reach the classifier. A blanket `shell *` ask is the
+same remaining default: the classifier decides. Narrow allow rules such as
+`cat *` still skip the classifier even when that blanket ask is also present.
+Narrow ask rules such as `git push *` still prompt you. Critical removals such
+as `rm -rf /` are denied deterministically.
 
 While auto mode is active, a separate prompt-injection probe inspects textual
 tool results and prepends a security warning to suspicious output before the

@@ -1,7 +1,7 @@
 export * as Permission from "./permission.js"
 
 import { makeLocationNode } from "@opencode-ai/util/effect/app-node"
-import { Context, Deferred, Effect, Layer, Option, Schema } from "effect"
+import { Context, Deferred, Effect, Layer, Schema } from "effect"
 import { Permission } from "@opencode-ai/schema/permission"
 import { Bus } from "./bus.js"
 import { Location } from "./location.js"
@@ -134,7 +134,6 @@ const layer = Layer.effect(
     const saved = yield* PermissionSaved.Service
     const hooks = yield* PluginHooks.Service
     const autostate = yield* PermissionAutoState.Service
-    const auto = yield* Effect.serviceOption(PermissionAuto.Service)
     const config = yield* Config.Service
     const pending = new Map<ID, Pending>()
 
@@ -195,14 +194,6 @@ const layer = Layer.effect(
       return rules.filter((rule) => Wildcard.match(input.action, rule.action))
     }
 
-    function matchRule(action: string, resource: string, rules: Permission.Ruleset) {
-      const rule = rules.findLast(
-        (item) => Wildcard.match(action, item.action) && Wildcard.match(resource, item.resource),
-      )
-      if (!rule) return { effect: "ask" as const, implicit: true, action, resource: "*" }
-      return { effect: rule.effect, implicit: false, action: rule.action, resource: rule.resource }
-    }
-
     const autoClassifyAll = Effect.fnUntraced(function* () {
       const entries = yield* config.entries()
       const scoped = entries.filter((entry) => {
@@ -214,9 +205,9 @@ const layer = Layer.effect(
 
     const evaluateInput = Effect.fnUntraced(function* (input: AssertInput) {
       const rules = yield* configured(input.sessionID, input.agent)
-      if (denied(input, rules)) return { effect: "deny" as const, rules, classify: false }
       const root = yield* rootID(input.sessionID)
       const autoActive = yield* autostate.isActive(root)
+      if (!autoActive && denied(input, rules)) return { effect: "deny" as const, rules, classify: false }
       const classifyAll = autoActive ? yield* autoClassifyAll() : false
       const configuredForEval = autoActive
         ? rules.filter(
@@ -225,7 +216,9 @@ const layer = Layer.effect(
           )
         : rules
       const all = [...configuredForEval, ...(yield* autoStrippedSaved(classifyAll, autoActive))]
-      const matches = input.resources.map((resource) => matchRule(input.action, resource, all))
+      const groups = input.resources.map((resource) =>
+        all.filter((rule) => Wildcard.match(input.action, rule.action) && Wildcard.match(resource, rule.resource)),
+      )
       const gated = autoActive
         ? PermissionAuto.isCriticalRemoval(input.action, input.resources)
           ? {
@@ -237,10 +230,23 @@ const layer = Layer.effect(
               action: input.action,
               resources: input.resources,
               directory: location.directory,
-              matches,
+              denied: groups.some((group) => group.some((rule) => rule.effect === "deny")),
+              contentScopedAsk: groups.some((group) =>
+                group.some((rule) =>
+                  PermissionAuto.isContentScopedAsk({
+                    effect: rule.effect,
+                    implicit: false,
+                    action: rule.action,
+                    resource: rule.resource,
+                  }),
+                ),
+              ),
+              allowed: groups.length > 0 && groups.every((group) => group.some((rule) => rule.effect === "allow")),
             })
         : {
-            effect: (matches.some((match) => match.effect === "ask") ? "ask" : "allow") as Permission.Effect,
+            effect: (groups.some((group) => (group.at(-1)?.effect ?? "ask") === "ask")
+              ? "ask"
+              : "allow") as Permission.Effect,
             classify: false,
           }
       const event = yield* hooks.trigger("permission", "evaluate", {
@@ -309,29 +315,34 @@ const layer = Layer.effect(
               })
             }
             if (result.effect === "allow") return
-            if (result.classify && Option.isSome(auto)) {
+            // The classifier is bound onto auto-mode state when PermissionAuto
+            // starts. Looking it up from this fiber misses it: plugin tools run
+            // with a picked context that does not include PermissionAuto.
+            if (result.classify) {
               const proposed = request(input, result.message)
-              const reviewed = yield* auto.value.review(proposed)
-              if (reviewed.decision === "allow") return
-              if (reviewed.decision === "deny") {
-                yield* bus.publish(Permission.Event.AutoDenied, {
-                  sessionID: proposed.sessionID,
-                  requestID: proposed.id,
-                  action: proposed.action,
-                  resources: proposed.resources,
-                  reason: reviewed.reason,
-                })
-                return yield* new CorrectedError({ feedback: PermissionAuto.denyFeedback(reviewed.reason) })
+              const reviewed = yield* autostate.classify(proposed)
+              if (reviewed) {
+                if (reviewed.decision === "allow") return
+                if (reviewed.decision === "deny") {
+                  yield* bus.publish(Permission.Event.AutoDenied, {
+                    sessionID: proposed.sessionID,
+                    requestID: proposed.id,
+                    action: proposed.action,
+                    resources: proposed.resources,
+                    reason: reviewed.reason,
+                  })
+                  return yield* new CorrectedError({ feedback: PermissionAuto.denyFeedback(reviewed.reason) })
+                }
+                const item = yield* create({ ...proposed, message: reviewed.reason }, input.agent)
+                return yield* restore(Deferred.await(item.deferred)).pipe(
+                  Effect.catchTag("Permission.DeclinedError", (error) => Effect.die(error)),
+                  Effect.ensuring(
+                    Effect.sync(() => {
+                      pending.delete(item.request.id)
+                    }),
+                  ),
+                )
               }
-              const item = yield* create({ ...proposed, message: reviewed.reason }, input.agent)
-              return yield* restore(Deferred.await(item.deferred)).pipe(
-                Effect.catchTag("Permission.DeclinedError", (error) => Effect.die(error)),
-                Effect.ensuring(
-                  Effect.sync(() => {
-                    pending.delete(item.request.id)
-                  }),
-                ),
-              )
             }
             const item = yield* create(request(input, result.message), input.agent)
             return yield* restore(Deferred.await(item.deferred)).pipe(

@@ -61,7 +61,6 @@ export const Plugin = {
     const agents = yield* Agent.Service
     const config = yield* Config.Service
     const permission = yield* Permission.Service
-    const auto = yield* Effect.serviceOption(PermissionAuto.Service)
     const subagents = yield* SubagentJob.make
 
     yield* ctx.tool
@@ -219,6 +218,7 @@ export const Plugin = {
               if (result?.info.status === "cancelled")
                 return yield* new ToolFailure({ message: `Subagent cancelled (sessionID: ${child.id})` })
               const output = result?.info.output ?? SubagentCompletion.NO_TEXT
+              const auto = yield* Effect.serviceOption(PermissionAuto.Service)
               if (Option.isNone(auto)) return { sessionID: child.id, status: "completed" as const, output }
               const active = yield* auto.value.enabled(context.sessionID).pipe(Effect.orElseSucceed(() => false))
               if (!active) return { sessionID: child.id, status: "completed" as const, output }

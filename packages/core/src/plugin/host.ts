@@ -33,6 +33,7 @@ import { WebSearch } from "../websearch.js"
 import { Worktree } from "../worktree.js"
 import { Generate } from "../generate.js"
 import { Permission } from "../permission.js"
+import { PermissionAuto } from "../permission/auto.js"
 import { PluginHooks } from "./hooks.js"
 import type { Interface } from "../plugin.js"
 import { LayerNode } from "@opencode-ai/util/effect/layer-node"
@@ -552,6 +553,7 @@ export const requirements = LayerNode.group([
   Worktree.node,
   Generate.node,
   Permission.node,
+  PermissionAuto.node,
   PluginHooks.node,
   Session.node,
   PersistentPty.node,

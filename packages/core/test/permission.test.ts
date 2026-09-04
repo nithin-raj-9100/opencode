@@ -286,6 +286,65 @@ describe("Permission", () => {
     }),
   )
 
+  it.effect("classifies blanket shell ask and still honors a narrow shell allow", () =>
+    Effect.gen(function* () {
+      yield* setup([
+        { action: "shell", resource: "cat *", effect: "allow" },
+        { action: "shell", resource: "*", effect: "ask" },
+      ])
+      const autostate = yield* PermissionAutoState.Service
+      const classified: string[] = []
+      yield* autostate.bindClassifier((request) => {
+        classified.push(request.resources.join(" "))
+        return Effect.succeed({ decision: "allow" as const, reason: "allowed by test classifier" })
+      })
+      yield* autostate.activate(Session.ID.make("ses_test"))
+      const service = yield* Permission.Service
+      yield* service.assert(assertion({ action: "shell", resources: ["cat README.md"] }))
+      expect(classified).toEqual([])
+      yield* service.assert(assertion({ action: "shell", resources: ["git status"] }))
+      expect(classified).toEqual(["git status"])
+      expect(yield* service.list()).toEqual([])
+    }),
+  )
+
+  it.effect("returns classifier denials without a human prompt", () =>
+    Effect.gen(function* () {
+      yield* setup([{ action: "shell", resource: "*", effect: "ask" }])
+      const autostate = yield* PermissionAutoState.Service
+      yield* autostate.bindClassifier(() =>
+        Effect.succeed({ decision: "deny" as const, reason: "Production reads are blocked" }),
+      )
+      yield* autostate.activate(Session.ID.make("ses_test"))
+      const service = yield* Permission.Service
+      const error = yield* service.assert(assertion({ action: "shell", resources: ["git status"] })).pipe(Effect.flip)
+      expect(error).toBeInstanceOf(Permission.CorrectedError)
+      expect(error.message).toContain("Blocked by classifier")
+      expect(yield* service.list()).toEqual([])
+    }),
+  )
+
+  it.effect("keeps content-scoped ask on the human prompt in auto mode", () =>
+    Effect.gen(function* () {
+      yield* setup([{ action: "shell", resource: "git push *", effect: "ask" }])
+      const autostate = yield* PermissionAutoState.Service
+      let classified = 0
+      yield* autostate.bindClassifier(() => {
+        classified++
+        return Effect.succeed({ decision: "allow" as const, reason: "should not run" })
+      })
+      yield* autostate.activate(Session.ID.make("ses_test"))
+      const { service, fiber, request } = yield* waitForRequest({
+        action: "shell",
+        resources: ["git push origin main"],
+      })
+      expect(classified).toBe(0)
+      expect(request.message).toBeUndefined()
+      yield* service.reply({ requestID: request.id, reply: "once" })
+      yield* Fiber.join(fiber)
+    }),
+  )
+
   it.effect("honors configured deny for reads even in auto mode", () =>
     Effect.gen(function* () {
       yield* setup([
