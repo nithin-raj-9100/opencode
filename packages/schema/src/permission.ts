@@ -50,7 +50,17 @@ const Replied = ephemeral({
     reply: Reply,
   },
 })
-export const Event = { Asked, Replied, Definitions: inventory(Asked, Replied) }
+const AutoDenied = ephemeral({
+  type: "permission.auto_denied",
+  schema: {
+    sessionID: SessionID,
+    requestID: ID,
+    action: Schema.String,
+    resources: Schema.Array(Schema.String),
+    reason: Schema.String,
+  },
+})
+export const Event = { Asked, Replied, AutoDenied, Definitions: inventory(Asked, Replied, AutoDenied) }
 
 export const Effect = Schema.Literals(["allow", "deny", "ask"]).annotate({ identifier: "Permission.Effect" })
 export type Effect = typeof Effect.Type
