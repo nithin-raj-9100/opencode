@@ -94,19 +94,61 @@ export async function runNonInteractivePrompt(input: Input) {
     return result
   }
 
+  const autoDenials = { consecutive: 0, total: 0 }
+  if (input.auto) {
+    await input.client.permission.auto({ sessionID: input.sessionID, enabled: true }).catch(() => {})
+  }
+
   const replyPermission = async (request: PermissionRequest) => {
-    if (!input.auto)
+    // Nobody can approve here. Reject with feedback so the tool fails as ordinary model-visible
+    // output and the model continues without the action.
+    if (!input.auto) {
       UI.println(
         UI.Style.TEXT_WARNING_BOLD + "!",
         UI.Style.TEXT_NORMAL +
           `permission requested: ${request.action} (${request.resources.join(", ")}); auto-rejecting`,
       )
+      await input.client.permission
+        .reply({
+          sessionID: request.sessionID,
+          requestID: request.id,
+          decision: "reject",
+          message: PERMISSION_REJECTED_FEEDBACK,
+        })
+        .catch(() => {})
+      return
+    }
+    // Auto mode reviews each request. A denial reaches the model as feedback; a request that needs
+    // a human, or a classifier that cannot decide, stops the run because nobody can answer it.
+    const stop = async (reason: string) => {
+      UI.println(UI.Style.TEXT_WARNING_BOLD + "!", UI.Style.TEXT_NORMAL + reason)
+      await input.client.permission
+        .reply({ sessionID: request.sessionID, requestID: request.id, decision: "reject" })
+        .catch(() => {})
+      await input.client.session.interrupt({ sessionID: input.sessionID }).catch(() => {})
+    }
+    const reviewed = await input.client.permission
+      .review({ sessionID: request.sessionID, requestID: request.id })
+      .catch(() => undefined)
+    if (!reviewed) return stop("auto mode paused: the classifier did not answer")
+    if (reviewed.decision === "allow") {
+      autoDenials.consecutive = 0
+      await input.client.permission
+        .reply({ sessionID: request.sessionID, requestID: request.id, decision: "once" })
+        .catch(() => {})
+      return
+    }
+    if (reviewed.decision === "ask") return stop(`auto mode paused: ${reviewed.reason}`)
+    autoDenials.consecutive += 1
+    autoDenials.total += 1
+    if (autoDenials.consecutive >= 3 || autoDenials.total >= 20)
+      return stop(`auto mode stopped after repeated denials: ${reviewed.reason}`)
     await input.client.permission
       .reply({
         sessionID: request.sessionID,
         requestID: request.id,
-        decision: input.auto ? "once" : "reject",
-        ...(input.auto ? {} : { message: PERMISSION_REJECTED_FEEDBACK }),
+        decision: "reject",
+        message: `Permission for this action has been denied. Reason: ${reviewed.reason}\n\nIMPORTANT: You *may* attempt to accomplish this action using other tools that might naturally be used to do so. However, if you have been denied permission for an action that seems essential to the user's request, you must not try to work around the denial using alternative tools.`,
       })
       .catch(() => {})
   }

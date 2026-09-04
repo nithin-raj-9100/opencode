@@ -95,6 +95,7 @@ export const layer = Layer.effect(
       store,
       jobs,
       inbox,
+      instances,
       wake,
       draining: Effect.suspend<ReadonlySet<SessionSchema.ID>, never, never>(() =>
         holder.coordinator ? holder.coordinator.draining : Effect.succeed(new Set<SessionSchema.ID>()),
