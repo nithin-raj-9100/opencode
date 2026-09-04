@@ -60,7 +60,7 @@ describe("public event manifest", () => {
     expect(FileSystem.Event.Definitions).toEqual([FileSystem.Event.Changed])
     expect(FileSystemV1.Event.Definitions).toEqual([FileSystemV1.Event.Edited])
     expect(Integration.Event.Definitions).toEqual([Integration.Event.Updated])
-    expect(Permission.Event.Definitions).toEqual([Permission.Event.Asked, Permission.Event.Replied])
+    expect(Permission.Event.Definitions).toEqual([Permission.Event.Asked, Permission.Event.Replied, Permission.Event.AutoDenied])
     expect(PersistentPty.Event.Definitions).toEqual([
       PersistentPty.Event.Added,
       PersistentPty.Event.Removed,
