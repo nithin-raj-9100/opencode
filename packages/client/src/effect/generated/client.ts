@@ -175,6 +175,10 @@ import type {
   PermissionSavedListOutput,
   PermissionSavedRemoveInput,
   PermissionSavedRemoveOutput,
+  PermissionAutoDefaultsInput,
+  PermissionAutoDefaultsOutput,
+  PermissionAutoConfigInput,
+  PermissionAutoConfigOutput,
   PermissionAutoInput,
   PermissionAutoOutput,
   PermissionCreateInput,
@@ -185,6 +189,10 @@ import type {
   PermissionGetOutput,
   PermissionReviewInput,
   PermissionReviewOutput,
+  PermissionDenialsInput,
+  PermissionDenialsOutput,
+  PermissionAutoStatusInput,
+  PermissionAutoStatusOutput,
   PermissionReplyInput,
   PermissionReplyOutput,
   FileListInput,
@@ -1120,6 +1128,16 @@ const EndpointPermissionSavedRemove = (raw: RawClient["server.permission"]) => (
     raw["permission.saved.remove"]({ params: { id: input["id"] } }).pipe(Effect.mapError(mapClientError)),
   )
 
+const EndpointPermissionAutoDefaults = (raw: RawClient["server.permission"]) => (input?: PermissionAutoDefaultsInput) =>
+  preserveEffect<PermissionAutoDefaultsOutput>()(
+    raw["permission.auto.defaults"]({ query: { location: input?.["location"] } }).pipe(Effect.mapError(mapClientError)),
+  )
+
+const EndpointPermissionAutoConfig = (raw: RawClient["server.permission"]) => (input?: PermissionAutoConfigInput) =>
+  preserveEffect<PermissionAutoConfigOutput>()(
+    raw["permission.auto.config"]({ query: { location: input?.["location"] } }).pipe(Effect.mapError(mapClientError)),
+  )
+
 const EndpointPermissionAuto = (raw: RawClient["server.permission"]) => (input: PermissionAutoInput) =>
   preserveEffect<PermissionAutoOutput>()(
     raw["session.permission.auto"]({
@@ -1171,6 +1189,22 @@ const EndpointPermissionReview = (raw: RawClient["server.permission"]) => (input
     ),
   )
 
+const EndpointPermissionDenials = (raw: RawClient["server.permission"]) => (input: PermissionDenialsInput) =>
+  preserveEffect<PermissionDenialsOutput>()(
+    raw["session.permission.denials"]({ params: { sessionID: input["sessionID"] } }).pipe(
+      Effect.mapError(mapClientError),
+      Effect.map((value) => value.data),
+    ),
+  )
+
+const EndpointPermissionAutoStatus = (raw: RawClient["server.permission"]) => (input: PermissionAutoStatusInput) =>
+  preserveEffect<PermissionAutoStatusOutput>()(
+    raw["session.permission.auto.status"]({ params: { sessionID: input["sessionID"] } }).pipe(
+      Effect.mapError(mapClientError),
+      Effect.map((value) => value.data),
+    ),
+  )
+
 const EndpointPermissionReply = (raw: RawClient["server.permission"]) => (input: PermissionReplyInput) =>
   preserveEffect<PermissionReplyOutput>()(
     raw["session.permission.reply"]({
@@ -1182,11 +1216,15 @@ const EndpointPermissionReply = (raw: RawClient["server.permission"]) => (input:
 const adaptGroupPermission = (raw: RawClient["server.permission"]) => ({
   request: { list: EndpointPermissionRequestList(raw) },
   saved: { list: EndpointPermissionSavedList(raw), remove: EndpointPermissionSavedRemove(raw) },
+  auto_defaults: EndpointPermissionAutoDefaults(raw),
+  auto_config: EndpointPermissionAutoConfig(raw),
   auto: EndpointPermissionAuto(raw),
   create: EndpointPermissionCreate(raw),
   list: EndpointPermissionList(raw),
   get: EndpointPermissionGet(raw),
   review: EndpointPermissionReview(raw),
+  denials: EndpointPermissionDenials(raw),
+  auto_status: EndpointPermissionAutoStatus(raw),
   reply: EndpointPermissionReply(raw),
 })
 

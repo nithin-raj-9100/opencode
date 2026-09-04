@@ -230,6 +230,19 @@ const Root = Spec.make(typeof OPENCODE_CLI_NAME === "string" ? OPENCODE_CLI_NAME
       description: "List all available models",
       params: ServerParams,
     }),
+    Spec.make("auto-mode", {
+      description: "Inspect auto mode classifier rules",
+      commands: [
+        Spec.make("defaults", {
+          description: "Print the built-in auto mode rules",
+          params: ServerParams,
+        }),
+        Spec.make("config", {
+          description: "Print the effective auto mode rules with settings applied",
+          params: ServerParams,
+        }),
+      ],
+    }),
     Spec.make("stats", {
       description: "Show shareable usage statistics",
       params: {

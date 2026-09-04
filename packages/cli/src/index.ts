@@ -47,6 +47,10 @@ const Handlers = Runtime.handlers(Commands, {
     remove: () => import("./commands/handlers/plugin/remove"),
   },
   models: () => import("./commands/handlers/models"),
+  "auto-mode": {
+    defaults: () => import("./commands/handlers/auto-mode/defaults"),
+    config: () => import("./commands/handlers/auto-mode/config"),
+  },
   stats: () => import("./commands/handlers/stats"),
   export: () => import("./commands/handlers/export"),
   import: () => import("./commands/handlers/import"),

@@ -57,6 +57,48 @@ export const makePermissionGroup = <
         }),
       ),
     )
+    .add(
+      HttpApiEndpoint.get("permission.auto.defaults", "/api/permission/auto/defaults", {
+        query: LocationQuery,
+        success: Location.response(
+          Schema.Struct({
+            allow: Schema.Array(Schema.String),
+            soft_deny: Schema.Array(Schema.String),
+            hard_deny: Schema.Array(Schema.String),
+            environment: Schema.String,
+          }),
+        ),
+      })
+        .annotateMerge(locationQueryOpenApi)
+        .annotateMerge(
+          OpenApi.annotations({
+            identifier: "v2.permission.auto_defaults",
+            summary: "Get auto mode defaults",
+            description: "Return the built-in auto mode classifier rules.",
+          }),
+        ),
+    )
+    .add(
+      HttpApiEndpoint.get("permission.auto.config", "/api/permission/auto/config", {
+        query: LocationQuery,
+        success: Location.response(
+          Schema.Struct({
+            allow: Schema.Array(Schema.String),
+            soft_deny: Schema.Array(Schema.String),
+            hard_deny: Schema.Array(Schema.String),
+            environment: Schema.String,
+          }),
+        ),
+      })
+        .annotateMerge(locationQueryOpenApi)
+        .annotateMerge(
+          OpenApi.annotations({
+            identifier: "v2.permission.auto_config",
+            summary: "Get effective auto mode config",
+            description: "Return the effective auto mode classifier rules with user settings applied.",
+          }),
+        ),
+    )
     // Effect applies group middleware only to endpoints already added; session endpoints use session placement below.
     .middleware(locationMiddleware)
     .add(
@@ -143,6 +185,47 @@ export const makePermissionGroup = <
             description: "Classify a pending permission using reviewed auto mode without executing the action.",
           }),
         ),
+    )
+    .add(
+      HttpApiEndpoint.get("session.permission.denials", "/api/session/:sessionID/permission/denials", {
+        params: { sessionID: Session.ID },
+        success: Schema.Struct({
+          data: Schema.Array(
+            Schema.Struct({
+              request: Permission.Request,
+              review: Permission.Review,
+              time: Schema.Number,
+            }),
+          ),
+        }),
+        error: SessionNotFoundError,
+      }).annotateMerge(
+        OpenApi.annotations({
+          identifier: "v2.session.permission.denials",
+          summary: "List auto mode denials",
+          description: "Retrieve recent actions the auto mode classifier denied for a session family.",
+        }),
+      ),
+    )
+    .add(
+      HttpApiEndpoint.get("session.permission.auto.status", "/api/session/:sessionID/permission/auto/status", {
+        params: { sessionID: Session.ID },
+        success: Schema.Struct({
+          data: Schema.Struct({
+            enabled: Schema.Boolean,
+            consecutive: Schema.Number,
+            total: Schema.Number,
+            broken: Schema.Boolean,
+          }),
+        }),
+        error: SessionNotFoundError,
+      }).annotateMerge(
+        OpenApi.annotations({
+          identifier: "v2.session.permission.auto_status",
+          summary: "Get auto mode status",
+          description: "Retrieve reviewed auto mode state and circuit-breaker counters for a session family.",
+        }),
+      ),
     )
     .add(
       HttpApiEndpoint.post("session.permission.reply", "/api/session/:sessionID/permission/:requestID/reply", {

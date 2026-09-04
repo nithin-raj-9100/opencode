@@ -252,9 +252,14 @@ total denials. Pending requests from child sessions are reviewed through their
 root session, so subagent handoffs do not bypass the policy. Classifier failures
 fail closed to the normal human prompt.
 
+While auto mode is active, broad shell allow rules are suspended so commands
+reach the classifier, and read-only tools skip it without a model call.
+Critical removals such as `rm -rf /` are denied deterministically.
+
 While auto mode is active, a separate prompt-injection probe inspects textual
 tool results and prepends a security warning to suspicious output before the
 next model step. Configure the classifier and probe with
 [`permission_auto`](/config#reviewed-auto-mode).
 
-Non-interactive clients must decide how to handle requests that require approval; explicit `deny` rules remain enforced.
+`opencode run --auto` classifies each request the same way and aborts the run
+after repeated denials. Explicit `deny` rules remain enforced.

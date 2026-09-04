@@ -195,17 +195,35 @@ in the TUI. The selected model must be available to the background service.
   "permission_auto": {
     "model": "openai/gpt-5.6-luna#high",
     "environment": "Only this repository and the acme GitHub organization are trusted.",
-    "block": ["Never deploy to production."],
-    "allow": ["Push to the current non-protected feature branch."],
+    "soft_deny": ["$defaults", "Never run migrations outside the migrations CLI."],
+    "hard_deny": ["$defaults", "Never send repository contents to third-party review APIs."],
+    "allow": ["$defaults", "Deploying to staging is allowed: it resets nightly."],
+    "classifyAllShell": false,
+    "classifier": "both",
     "prompt_injection_probe": true,
   },
 }
 ```
 
-`block` and `allow` extend the built-in policy; they do not replace configured
-permission rules. Omit `model` to use the active session model. The prompt
-injection probe checks textual tool results while reviewed auto mode is active
-and is enabled unless set to `false`.
+`soft_deny` blocks unless explicit user intent or an `allow` exception clears
+it. `hard_deny` blocks unconditionally. `block` remains as an alias for
+`soft_deny`.
+
+```jsonc
+{ "permission_auto": { "soft_deny": ["Never touch prod."] } }
+```
+
+Include `"$defaults"` to keep the built-in rules; without it the list replaces
+the defaults entirely. `classifyAllShell` routes every shell command through
+the classifier. `classifier` selects `"both"`, `"fast"`, or `"thinking"`.
+
+`permission_auto` from project settings is ignored, so a checked-in repo
+cannot widen its own policy. Inspect the rules with:
+
+```sh
+opencode auto-mode defaults
+opencode auto-mode config
+```
 
 See [Reviewed auto mode](/permissions#reviewed-auto-mode) for the decision and
 escalation behavior.
