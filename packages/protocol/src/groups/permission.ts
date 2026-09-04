@@ -105,7 +105,10 @@ export const makePermissionGroup = <
       HttpApiEndpoint.put("session.permission.auto", "/api/session/:sessionID/permission/auto", {
         params: { sessionID: Session.ID },
         query: LocationQuery,
-        payload: Schema.Struct({ enabled: Schema.Boolean }),
+        payload: Schema.Struct({
+          enabled: Schema.Boolean,
+          source: Schema.Literals(["mount", "sync", "cleanup"]).pipe(Schema.optional),
+        }),
         success: HttpApiSchema.NoContent,
       })
         .middleware(locationMiddleware)

@@ -401,7 +401,6 @@ const layer = Layer.effect(
               yield* autostate.activate(id)
               if (!breaker.has(id)) breaker.set(id, { consecutive: 0, total: 0, broken: false })
             } else yield* autostate.deactivate(id)
-            yield* Effect.logInfo("reviewed auto mode updated", { sessionID: id, enabled: value })
           }),
         ),
         Effect.asVoid,
@@ -501,7 +500,10 @@ const layer = Layer.effect(
       if (state?.broken) {
         return { decision: "ask" as const, reason: "Auto mode disabled after repeated denials for this session." }
       }
+      const wasActive = yield* autostate.isActive(rootID)
       yield* set(request.sessionID, true)
+      if (!wasActive)
+        yield* Effect.logInfo("reviewed auto mode enabled via review", { sessionID: rootID })
       if (isSafeTool(request.action)) {
         yield* recordOutcome(rootID, "allow")
         return { decision: "allow" as const, reason: "Safe tool allowlist" }
