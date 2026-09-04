@@ -7,6 +7,7 @@ import { LayerNode } from "@opencode/util/effect/layer-node"
 import { Bus } from "@opencode/core/bus"
 import { Location } from "@opencode/core/location"
 import { Permission } from "@opencode/core/permission"
+import { PermissionAutoState } from "@opencode/core/permission/state"
 import { PermissionTable } from "@opencode/core/permission/sql"
 import { PermissionSaved } from "@opencode/core/permission/saved"
 import { Project } from "@opencode/core/project"
@@ -26,7 +27,15 @@ const current = Layer.succeed(
 )
 const it = testEffect(
   AppNodeBuilder.build(
-    LayerNode.group([Database.node, Bus.node, SessionStore.node, PermissionSaved.node, Agent.node, Permission.node]),
+    LayerNode.group([
+      Database.node,
+      Bus.node,
+      SessionStore.node,
+      PermissionSaved.node,
+      Agent.node,
+      Permission.node,
+      PermissionAutoState.node,
+    ]),
     [Location.node.replace(current)],
   ),
 )
@@ -249,6 +258,77 @@ describe("Permission", () => {
       expect(yield* service.ask(assertion({ action: "bash", resources: ["pwd"] }))).toMatchObject({ effect: "deny" })
       yield* setSession([{ action: "bash", resource: "*", effect: "ask" }])
       expect(yield* service.ask(assertion({ action: "bash", resources: ["pwd"] }))).toMatchObject({ effect: "allow" })
+    }),
+  )
+
+  it.effect("routes consequential tools through auto mode while allowing all reads", () =>
+    Effect.gen(function* () {
+      yield* setup([
+        { action: "*", resource: "*", effect: "allow" },
+        { action: "external_directory", resource: "*", effect: "ask" },
+        { action: "read", resource: "*.env", effect: "ask" },
+      ])
+      const autostate = yield* PermissionAutoState.Service
+      yield* autostate.activate(Session.ID.make("ses_test"))
+      const service = yield* Permission.Service
+      expect(
+        yield* service.ask(
+          assertion({ id: Permission.ID.create("per_auto_shell"), action: "shell", resources: ["git status"] }),
+        ),
+      ).toMatchObject({
+        effect: "ask",
+      })
+      expect(yield* service.ask(assertion({ action: "read", resources: [".env"] }))).toMatchObject({ effect: "allow" })
+      expect(yield* service.ask(assertion({ action: "read", resources: ["~/.zshrc"] }))).toMatchObject({
+        effect: "allow",
+      })
+      expect(yield* service.ask(assertion({ action: "read", resources: [".git/config"] }))).toMatchObject({
+        effect: "allow",
+      })
+      expect(yield* service.ask(assertion({ action: "glob", resources: ["~/.config/*"] }))).toMatchObject({
+        effect: "allow",
+      })
+      expect(yield* service.ask(assertion({ action: "grep", resources: [".git/**"] }))).toMatchObject({
+        effect: "allow",
+      })
+      expect(
+        yield* service.ask(assertion({ action: "external_directory", resources: ["/Users/me/.zshrc"] })),
+      ).toMatchObject({ effect: "allow" })
+      expect(
+        yield* service.ask(assertion({ action: "webfetch", resources: ["https://example.com"] })),
+      ).toMatchObject({ effect: "allow" })
+      expect(yield* service.ask(assertion({ action: "edit", resources: ["src/index.ts"] }))).toMatchObject({
+        effect: "allow",
+      })
+      expect(
+        yield* service.ask(
+          assertion({
+            id: Permission.ID.create("per_auto_edit"),
+            action: "edit",
+            resources: ["/tmp/outside.ts"],
+          }),
+        ),
+      ).toMatchObject({
+        effect: "ask",
+      })
+    }),
+  )
+
+  it.effect("honors configured deny for reads even in auto mode", () =>
+    Effect.gen(function* () {
+      yield* setup([
+        { action: "*", resource: "*", effect: "allow" },
+        { action: "read", resource: "*.env", effect: "deny" },
+      ])
+      const autostate = yield* PermissionAutoState.Service
+      yield* autostate.activate(Session.ID.make("ses_test"))
+      const service = yield* Permission.Service
+      expect(yield* service.ask(assertion({ action: "read", resources: [".env"] }))).toMatchObject({
+        effect: "deny",
+      })
+      expect(yield* service.ask(assertion({ action: "read", resources: ["~/.zshrc"] }))).toMatchObject({
+        effect: "allow",
+      })
     }),
   )
 

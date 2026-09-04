@@ -107,6 +107,7 @@ export const Plugin = {
                   action: name,
                   resources: [agent.id],
                   save: [agent.id],
+                  metadata: { agent: agent.id, description: input.description, prompt: input.prompt },
                   sessionID: context.sessionID,
                   agent: context.agent,
                   source: {

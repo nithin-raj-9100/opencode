@@ -29,7 +29,9 @@ export function shouldStripAllow(
   resource: string,
   classifyAllShell: boolean,
 ) {
+  if (action === "*" && resource === "*") return true
   if (isDangerousAllow(action, resource)) return true
+  if ((action === "edit" || action === "write" || action === "patch") && resource === "*") return true
   if (classifyAllShell && (action === "shell" || action === "bash")) return true
   return false
 }
