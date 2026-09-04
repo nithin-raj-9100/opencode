@@ -92,6 +92,21 @@ export function isInsideDirectory(resource: string, directory: string) {
   return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative))
 }
 
+export function isContentScopedAsk(match: {
+  effect: Permission.Effect
+  implicit: boolean
+  action: string
+  resource: string
+}) {
+  if (match.effect !== "ask" || match.implicit) return false
+  if (isSafeTool(match.action)) return false
+  // `shell *` / `* *` ask is the default remaining policy after auto mode
+  // strips broad allows. Those still go to the classifier. Only a narrower
+  // pattern such as `git push *` skips it for a human prompt.
+  if (match.action === "*" || match.resource === "*") return false
+  return true
+}
+
 export function isAcceptEdits(action: string, resources: ReadonlyArray<string>, directory: string) {
   if (action !== "edit" && action !== "write" && action !== "patch") return false
   return (
@@ -122,24 +137,16 @@ export function autoGate(input: {
   action: string
   resources: ReadonlyArray<string>
   directory: string
-  matches: ReadonlyArray<{
-    effect: Permission.Effect
-    implicit: boolean
-    action: string
-    resource: string
-  }>
+  denied: boolean
+  contentScopedAsk: boolean
+  allowed: boolean
 }) {
-  if (input.matches.some((match) => match.effect === "deny")) return { effect: "deny" as const, classify: false }
+  if (input.denied) return { effect: "deny" as const, classify: false }
   // Reads of any file or folder — including .env, .git, and home paths such as
   // ~/.zshrc — are allowed by default. Configured deny rules still win above.
   if (isSafeTool(input.action)) return { effect: "allow" as const, classify: false }
-  const human = input.matches.some((match) => {
-    if (match.effect !== "ask" || match.implicit) return false
-    if (isSafeTool(match.action)) return false
-    return true
-  })
-  if (human) return { effect: "ask" as const, classify: false }
-  if (input.matches.every((match) => match.effect === "allow")) {
+  if (input.contentScopedAsk) return { effect: "ask" as const, classify: false }
+  if (input.allowed) {
     if (input.action === "edit" && input.resources.some(isProtectedPath))
       return { effect: "ask" as const, classify: true }
     return { effect: "allow" as const, classify: false }
@@ -769,6 +776,8 @@ ${sample}`,
       }
     })
 
+    yield* autostate.bindClassifier(review)
+    yield* Effect.addFinalizer(() => autostate.bindClassifier(undefined))
     return Service.of({ set, enabled, review, reviewSubagent, inspect, denials, status, defaults, effective })
   }),
 )
