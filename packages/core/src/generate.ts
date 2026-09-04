@@ -16,6 +16,8 @@ import { ModelRetry } from "./model-retry.js"
 export interface TextInput {
   readonly prompt: string
   readonly model?: Model.Ref
+  readonly generation?: { readonly maxTokens?: number; readonly temperature?: number; readonly stop?: ReadonlyArray<string> }
+  readonly promptCacheKey?: string
 }
 
 export class UnavailableError extends Schema.TaggedError<UnavailableError>()("Generate.UnavailableError", {
@@ -116,6 +118,8 @@ export const layer = Layer.effect(
           ai.request({
             model: resolved.model,
             prompt: input.prompt,
+            ...(input.generation ? { generation: input.generation } : {}),
+            ...(input.promptCacheKey ? { promptCacheKey: input.promptCacheKey } : {}),
             // Gateways require session attribution even for a stateless call; no Session is stored.
             http: { headers: { "x-opencode-session": SessionID.create() } },
           }),
