@@ -401,6 +401,7 @@ const layer = Layer.effect(
               yield* autostate.activate(id)
               if (!breaker.has(id)) breaker.set(id, { consecutive: 0, total: 0, broken: false })
             } else yield* autostate.deactivate(id)
+            yield* Effect.logInfo("reviewed auto mode updated", { sessionID: id, enabled: value })
           }),
         ),
         Effect.asVoid,
@@ -449,6 +450,14 @@ const layer = Layer.effect(
         denialLog.set(rootID, next)
       })
 
+    // One delayed retry: provider rate limits are the common transient
+    // classifier failure, and an immediate retry would hammer the limit.
+    const transient = <A, E>(effect: Effect.Effect<A, E>) =>
+      effect.pipe(
+        Effect.catchCause(() => Effect.sleep("2 seconds").pipe(Effect.andThen(effect))),
+        Effect.option,
+      )
+
     const classify = Effect.fn("PermissionAuto.classify")(function* (input: {
       system: string
       transcript: string
@@ -458,14 +467,14 @@ const layer = Layer.effect(
       cacheKey: string
     }) {
       if (input.classifier !== "thinking") {
-        const fast = yield* generate
-          .text({
+        const fast = yield* transient(
+          generate.text({
             prompt: `${input.system}\n\n<transcript>\n${input.transcript}\n${input.actionText}\n</transcript>\n\nErr on the side of blocking. Stage 1 does NOT apply user intent or ALLOW exceptions — stage 2 will handle those. Block if ANY rule could apply. <block> immediately.`,
             model: input.model,
             generation: { maxTokens: 64, temperature: 0, stop: ["</block>"] },
             promptCacheKey: input.cacheKey,
-          })
-          .pipe(Effect.option)
+          }),
+        )
         if (fast._tag === "None") return undefined
         if (!fast.value.toLowerCase().includes("<block")) {
           const parsed = parse(fast.value)
@@ -474,14 +483,14 @@ const layer = Layer.effect(
         }
         if (input.classifier === "fast") return { decision: "deny" as const, reason: "Blocked by fast classifier" }
       }
-      const slow = yield* generate
-        .text({
+      const slow = yield* transient(
+        generate.text({
           prompt: `${input.system}\n\n<transcript>\n${input.transcript}\n${input.actionText}\n</transcript>\n\nReview the classification process and follow it carefully, making sure you deny actions that should be blocked. As a reminder, explicit (not suggestive or implicit) user confirmation is required to override blocks. Use <thinking> before responding with <block>.`,
           model: input.model,
           generation: { maxTokens: 4096, temperature: 0 },
           promptCacheKey: input.cacheKey,
-        })
-        .pipe(Effect.option)
+        }),
+      )
       if (slow._tag === "None") return undefined
       return parse(slow.value)
     })
@@ -539,6 +548,12 @@ const layer = Layer.effect(
       }
       yield* recordOutcome(rootID, result.decision)
       if (result.decision === "deny") yield* pushDenial(rootID, request, result)
+      yield* Effect.logInfo("automatic permission review decided", {
+        sessionID: request.sessionID,
+        action: request.action,
+        decision: result.decision,
+        reason: result.reason,
+      })
       return result
     })
 
