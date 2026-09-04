@@ -29,7 +29,6 @@ import { createSyntaxStyleMemo, ThemeContextProvider, useTheme, useThemes } from
 import { BoxRenderable, ScrollBoxRenderable, addDefaultParsers, TextAttributes, RGBA, MouseEvent } from "@opentui/core"
 import { Prompt, type PromptRef } from "../../component/prompt"
 import {
-  isSessionNotFoundError,
   type ModelInfo,
   type SessionMessageInfo,
   type SessionMessageAssistant,
@@ -269,13 +268,22 @@ export function Session(props: {
   let autoSync = 0
   createEffect(() => {
     if (!session()) return
+    // Read connection status so a server restart re-runs the sync and
+    // re-enables server-side auto mode, whose in-memory state was wiped.
+    if (client.connection.status() !== "connected") return
     const enabled = local.permission.mode === "auto"
     const generation = ++autoSync
     if (!enabled && !autoRequested) return
     if (enabled) autoRequested = true
+    const directory = location()?.directory
+    const workspaceID = location()?.workspaceID
     const sync = (attempt: number): Promise<void> =>
       client.api.permission
-        .auto({ sessionID: route.sessionID, enabled })
+        .auto({
+          sessionID: route.sessionID,
+          enabled,
+          ...(directory ? { location: { directory, ...(workspaceID ? { workspace: workspaceID } : {}) } } : {}),
+        })
         .then(() => {
           if (generation !== autoSync) return
           autoSynced = enabled
@@ -283,8 +291,11 @@ export function Session(props: {
         })
         .catch((error) => {
           if (generation !== autoSync) return
-          if (enabled && isSessionNotFoundError(error) && attempt < 50)
-            return Bun.sleep(100).then(() => sync(attempt + 1))
+          // Retry any failure while auto is wanted: the session may not be
+          // admitted yet, or the server may be restarting. Only flip to manual
+          // prompts after sustained failure so a transient never silently
+          // disables auto mode.
+          if (enabled && attempt < 50) return Bun.sleep(100).then(() => sync(attempt + 1))
           if (local.permission.mode !== "auto") return
           local.permission.set("normal")
           toast.show({ variant: "warning", message: `Unable to enable reviewed auto mode: ${errorMessage(error)}` })
@@ -294,7 +305,15 @@ export function Session(props: {
   onCleanup(() => {
     autoSync += 1
     if (!autoRequested && !autoSynced) return
-    void client.api.permission.auto({ sessionID: route.sessionID, enabled: false })
+    const directory = location()?.directory
+    const workspaceID = location()?.workspaceID
+    void client.api.permission
+      .auto({
+        sessionID: route.sessionID,
+        enabled: false,
+        ...(directory ? { location: { directory, ...(workspaceID ? { workspace: workspaceID } : {}) } } : {}),
+      })
+      .catch(() => {})
   })
   const autoReviewed = new Set<string>()
   const autoDenials = { consecutive: 0, total: 0 }

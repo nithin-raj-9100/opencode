@@ -5610,6 +5610,9 @@ export type PermissionAutoConfigOutput = {
 
 export type PermissionAutoInput = {
   readonly sessionID: { readonly sessionID: string }["sessionID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
   readonly enabled: { readonly enabled: boolean }["enabled"]
 }
 

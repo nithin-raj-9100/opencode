@@ -8597,6 +8597,46 @@
               "pattern": "^ses"
             },
             "required": true
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "directory": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "workspace": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "required": false,
+            "style": "deepObject",
+            "explode": true
           }
         ],
         "security": [],
@@ -8623,26 +8663,9 @@
                 }
               }
             }
-          },
-          "404": {
-            "description": "SessionNotFoundError",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/SessionNotFoundErrorEncoded"
-                    },
-                    {
-                      "$ref": "#/components/schemas/SessionNotFoundErrorEncoded"
-                    }
-                  ]
-                }
-              }
-            }
           }
         },
-        "description": "Enable or disable reviewed auto mode for a session family.",
+        "description": "Enable or disable reviewed auto mode for a session family. Works before the session exists: enabling an unknown session pre-enables its family.",
         "summary": "Set reviewed auto mode",
         "requestBody": {
           "content": {
