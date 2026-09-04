@@ -94,7 +94,6 @@ export async function runNonInteractivePrompt(input: Input) {
     return result
   }
 
-  const autoDenials = { consecutive: 0, total: 0 }
   if (input.auto) {
     await input.client.permission.auto({ sessionID: input.sessionID, enabled: true }).catch(() => {})
   }
@@ -118,39 +117,20 @@ export async function runNonInteractivePrompt(input: Input) {
         .catch(() => {})
       return
     }
-    // Auto mode reviews each request. A denial reaches the model as feedback; a request that needs
-    // a human, or a classifier that cannot decide, stops the run because nobody can answer it.
-    const stop = async (reason: string) => {
-      UI.println(UI.Style.TEXT_WARNING_BOLD + "!", UI.Style.TEXT_NORMAL + reason)
-      await input.client.permission
-        .reply({ sessionID: request.sessionID, requestID: request.id, decision: "reject" })
-        .catch(() => {})
-      await input.client.session.interrupt({ sessionID: input.sessionID }).catch(() => {})
+    // Classifier allows never reach here. Any remaining ask needs a human, and nobody can answer
+    // in this run, so surface the reason and stop rather than wait on a request nobody will approve.
+    state.failure ??= {
+      type: "unknown",
+      message: `Auto mode paused: ${request.message ?? "needs your review"}`,
     }
-    const reviewed = await input.client.permission
-      .review({ sessionID: request.sessionID, requestID: request.id })
-      .catch(() => undefined)
-    if (!reviewed) return stop("auto mode paused: the classifier did not answer")
-    if (reviewed.decision === "allow") {
-      autoDenials.consecutive = 0
-      await input.client.permission
-        .reply({ sessionID: request.sessionID, requestID: request.id, decision: "once" })
-        .catch(() => {})
-      return
-    }
-    if (reviewed.decision === "ask") return stop(`auto mode paused: ${reviewed.reason}`)
-    autoDenials.consecutive += 1
-    autoDenials.total += 1
-    if (autoDenials.consecutive >= 3 || autoDenials.total >= 20)
-      return stop(`auto mode stopped after repeated denials: ${reviewed.reason}`)
+    UI.println(
+      UI.Style.TEXT_WARNING_BOLD + "!",
+      UI.Style.TEXT_NORMAL + `auto mode paused: ${request.message ?? "needs your review"}`,
+    )
     await input.client.permission
-      .reply({
-        sessionID: request.sessionID,
-        requestID: request.id,
-        decision: "reject",
-        message: `Permission for this action has been denied. Reason: ${reviewed.reason}\n\nIMPORTANT: You *may* attempt to accomplish this action using other tools that might naturally be used to do so. However, if you have been denied permission for an action that seems essential to the user's request, you must not try to work around the denial using alternative tools.`,
-      })
+      .reply({ sessionID: request.sessionID, requestID: request.id, decision: "reject" })
       .catch(() => {})
+    await input.client.session.interrupt({ sessionID: input.sessionID }).catch(() => {})
   }
 
   // A cancelled question lets the model continue; any other input request fails the run.
@@ -192,6 +172,14 @@ export async function runNonInteractivePrompt(input: Input) {
         throw new Error("Event stream disconnected during prompt execution")
       }
       const event = next.value
+      if (event.type === "permission.auto_denied") {
+        if (await ownsSession(event.data.sessionID))
+          UI.println(
+            UI.Style.TEXT_WARNING_BOLD + "!",
+            UI.Style.TEXT_NORMAL + `blocked by classifier: ${event.data.reason}`,
+          )
+        continue
+      }
       if (event.type === "permission.asked") {
         if (await ownsSession(event.data.sessionID)) await replyPermission(event.data)
         continue
