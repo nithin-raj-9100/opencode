@@ -177,7 +177,8 @@ function permissionTool(request: PermissionRequest, tools: Map<string, SessionMe
 }
 
 function blockerCategory(event: V2Event): "permission" | "form" | undefined {
-  if (event.type === "permission.asked" || event.type === "permission.replied") return "permission"
+  if (event.type === "permission.asked" || event.type === "permission.replied" || event.type === "permission.auto_denied")
+    return "permission"
   if (event.type === "form.created" || event.type === "form.replied" || event.type === "form.cancelled") return "form"
 }
 
