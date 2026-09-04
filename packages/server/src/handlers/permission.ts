@@ -91,6 +91,26 @@ export const PermissionHandler = HttpApiBuilder.group(Api, "server.permission", 
         }),
       )
       .handle(
+        "session.permission.denials",
+        Effect.fn(function* (ctx) {
+          const session = yield* sessionInfo(sessions, ctx.params.sessionID)
+          const data = yield* PermissionAuto.Service.use((auto) => auto.denials(ctx.params.sessionID)).pipe(
+            instances.provide(session),
+          )
+          return { data }
+        }),
+      )
+      .handle(
+        "session.permission.auto.status",
+        Effect.fn(function* (ctx) {
+          const session = yield* sessionInfo(sessions, ctx.params.sessionID)
+          const data = yield* PermissionAuto.Service.use((auto) => auto.status(ctx.params.sessionID)).pipe(
+            instances.provide(session),
+          )
+          return { data }
+        }),
+      )
+      .handle(
         "session.permission.reply",
         Effect.fn(function* (ctx) {
           const owned = yield* requireOwnedRequest(ctx.params.sessionID, ctx.params.requestID)
@@ -118,6 +138,20 @@ export const PermissionHandler = HttpApiBuilder.group(Api, "server.permission", 
           const saved = yield* PermissionSaved.Service
           yield* saved.remove(ctx.params.id)
           return HttpApiSchema.NoContent.make()
+        }),
+      )
+      .handle(
+        "permission.auto.defaults",
+        Effect.fn(function* () {
+          const auto = yield* PermissionAuto.Service
+          return yield* response(auto.defaults())
+        }),
+      )
+      .handle(
+        "permission.auto.config",
+        Effect.fn(function* () {
+          const auto = yield* PermissionAuto.Service
+          return yield* response(auto.effective())
         }),
       )
   }),
