@@ -124,80 +124,50 @@ describe("PermissionAuto", () => {
     expect(PermissionAuto.toAutoClassifierInput("read", ["file.ts"], {})).toBe("")
   })
 
-  test("allows reading any file or folder in auto mode, including env git and home paths", () => {
+  test("content-scoped ask skips the classifier; blanket ask does not", () => {
+    expect(
+      PermissionAuto.isContentScopedAsk({ effect: "ask", implicit: true, action: "shell", resource: "*" }),
+    ).toBe(false)
+    expect(
+      PermissionAuto.isContentScopedAsk({ effect: "ask", implicit: false, action: "shell", resource: "*" }),
+    ).toBe(false)
+    expect(
+      PermissionAuto.isContentScopedAsk({ effect: "ask", implicit: false, action: "*", resource: "*" }),
+    ).toBe(false)
+    expect(
+      PermissionAuto.isContentScopedAsk({ effect: "ask", implicit: false, action: "shell", resource: "git push *" }),
+    ).toBe(true)
+  })
+
+  test("gates auto mode by rule category, not by a specific command string", () => {
     const allow = { effect: "allow" as const, classify: false }
-    expect(
+    const classify = { effect: "ask" as const, classify: true }
+    const askHuman = { effect: "ask" as const, classify: false }
+    const gate = (
+      action: string,
+      resources: string[],
+      flags: { denied?: boolean; contentScopedAsk?: boolean; allowed?: boolean } = {},
+    ) =>
       PermissionAuto.autoGate({
-        action: "read",
-        resources: ["~/.zshrc"],
+        action,
+        resources,
         directory: "/project",
-        matches: [{ effect: "ask", implicit: false, action: "read", resource: "*.env" }],
-      }),
-    ).toEqual(allow)
-    expect(
-      PermissionAuto.autoGate({
-        action: "external_directory",
-        resources: ["/Users/me/.zshrc"],
-        directory: "/project",
-        matches: [{ effect: "ask", implicit: false, action: "external_directory", resource: "*" }],
-      }),
-    ).toEqual(allow)
-    expect(
-      PermissionAuto.autoGate({
-        action: "read",
-        resources: [".git/config"],
-        directory: "/project",
-        matches: [{ effect: "ask", implicit: true, action: "read", resource: "*" }],
-      }),
-    ).toEqual(allow)
-    expect(
-      PermissionAuto.autoGate({
-        action: "glob",
-        resources: ["~/.zshrc"],
-        directory: "/project",
-        matches: [{ effect: "ask", implicit: true, action: "glob", resource: "*" }],
-      }),
-    ).toEqual(allow)
-    expect(
-      PermissionAuto.autoGate({
-        action: "grep",
-        resources: [".git/config"],
-        directory: "/project",
-        matches: [{ effect: "ask", implicit: true, action: "grep", resource: "*" }],
-      }),
-    ).toEqual(allow)
-    expect(
-      PermissionAuto.autoGate({
-        action: "webfetch",
-        resources: ["https://example.com"],
-        directory: "/project",
-        matches: [{ effect: "ask", implicit: true, action: "webfetch", resource: "*" }],
-      }),
-    ).toEqual(allow)
-    expect(
-      PermissionAuto.autoGate({
-        action: "read",
-        resources: [".env"],
-        directory: "/project",
-        matches: [{ effect: "deny", implicit: false, action: "read", resource: "*.env" }],
-      }),
-    ).toEqual({ effect: "deny", classify: false })
-    expect(
-      PermissionAuto.autoGate({
-        action: "shell",
-        resources: ["git push origin main"],
-        directory: "/project",
-        matches: [{ effect: "ask", implicit: true, action: "shell", resource: "*" }],
-      }),
-    ).toEqual({ effect: "ask", classify: true })
-    expect(
-      PermissionAuto.autoGate({
-        action: "edit",
-        resources: ["src/index.ts"],
-        directory: "/project",
-        matches: [{ effect: "ask", implicit: true, action: "edit", resource: "*" }],
-      }),
-    ).toEqual(allow)
+        denied: flags.denied === true,
+        contentScopedAsk: flags.contentScopedAsk === true,
+        allowed: flags.allowed === true,
+      })
+
+    expect(gate("read", ["~/.zshrc"])).toEqual(allow)
+    expect(gate("external_directory", ["/Users/me/.zshrc"])).toEqual(allow)
+    expect(gate("read", [".git/config"])).toEqual(allow)
+    expect(gate("glob", ["~/.zshrc"])).toEqual(allow)
+    expect(gate("grep", [".git/config"])).toEqual(allow)
+    expect(gate("webfetch", ["https://example.com"])).toEqual(allow)
+    expect(gate("read", [".env"], { denied: true })).toEqual({ effect: "deny", classify: false })
+    expect(gate("shell", ["git status"])).toEqual(classify)
+    expect(gate("shell", ["cat README.md"], { allowed: true })).toEqual(allow)
+    expect(gate("shell", ["git push origin main"], { contentScopedAsk: true, allowed: true })).toEqual(askHuman)
+    expect(gate("edit", ["src/index.ts"])).toEqual(allow)
   })
 
   test("parses <block>no as allow and fails closed on unparseable xml", () => {

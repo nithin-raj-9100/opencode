@@ -6,10 +6,14 @@ import type { Permission } from "@opencode-ai/schema/permission"
 
 type SessionID = Permission.Request["sessionID"]
 
+type Classifier = (request: Permission.Request) => Effect.Effect<Permission.Review>
+
 export interface Interface {
   readonly isActive: (sessionID: SessionID) => Effect.Effect<boolean>
   readonly activate: (sessionID: SessionID) => Effect.Effect<void>
   readonly deactivate: (sessionID: SessionID) => Effect.Effect<void>
+  readonly bindClassifier: (classify: Classifier | undefined) => Effect.Effect<void>
+  readonly classify: (request: Permission.Request) => Effect.Effect<Permission.Review | undefined>
 }
 
 export class Service extends Context.Service<Service, Interface>()("@opencode/PermissionAutoState") {}
@@ -40,10 +44,16 @@ const layer = Layer.effect(
   Service,
   Effect.gen(function* () {
     const active = new Set<SessionID>()
+    let classifier: Classifier | undefined
     const isActive: Interface["isActive"] = (sessionID) => Effect.succeed(active.has(sessionID))
     const activate: Interface["activate"] = (sessionID) => Effect.sync(() => void active.add(sessionID))
     const deactivate: Interface["deactivate"] = (sessionID) => Effect.sync(() => void active.delete(sessionID))
-    return Service.of({ isActive, activate, deactivate })
+    const bindClassifier: Interface["bindClassifier"] = (classify) =>
+      Effect.sync(() => {
+        classifier = classify
+      })
+    const classify: Interface["classify"] = (request) => (classifier ? classifier(request) : Effect.succeed(undefined))
+    return Service.of({ isActive, activate, deactivate, bindClassifier, classify })
   }),
 )
 
