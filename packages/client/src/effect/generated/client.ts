@@ -1142,6 +1142,7 @@ const EndpointPermissionAuto = (raw: RawClient["server.permission"]) => (input: 
   preserveEffect<PermissionAutoOutput>()(
     raw["session.permission.auto"]({
       params: { sessionID: input["sessionID"] },
+      query: { location: input["location"] },
       payload: { enabled: input["enabled"] },
     }).pipe(Effect.mapError(mapClientError)),
   )

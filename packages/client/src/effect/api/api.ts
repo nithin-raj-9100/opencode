@@ -1548,7 +1548,11 @@ export type PermissionAutoConfigOperation<E = never> = (
   input?: PermissionAutoConfigInput,
 ) => Effect.Effect<PermissionAutoConfigOutput, E>
 
-export type PermissionAutoInput = { readonly sessionID: Session.ID; readonly enabled: boolean }
+export type PermissionAutoInput = {
+  readonly sessionID: Session.ID
+  readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  readonly enabled: boolean
+}
 export type PermissionAutoOutput = void
 export type PermissionAutoOperation<E = never> = (input: PermissionAutoInput) => Effect.Effect<PermissionAutoOutput, E>
 
