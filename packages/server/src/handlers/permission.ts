@@ -35,6 +35,11 @@ export const PermissionHandler = HttpApiBuilder.group(Api, "server.permission", 
         Effect.fn(function* (ctx) {
           const auto = yield* PermissionAuto.Service
           yield* auto.set(ctx.params.sessionID, ctx.payload.enabled)
+          yield* Effect.logInfo("reviewed auto mode updated", {
+            sessionID: ctx.params.sessionID,
+            enabled: ctx.payload.enabled,
+            source: ctx.payload.source ?? "unknown",
+          })
           return HttpApiSchema.NoContent.make()
         }),
       )

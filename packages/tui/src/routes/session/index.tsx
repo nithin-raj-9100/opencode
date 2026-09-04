@@ -213,7 +213,11 @@ export function Session(props: {
       (sessionID) => data.session.permission.list(sessionID) ?? [],
     )
   })
-  const promptedPermissions = createMemo(() => (local.permission.mode === "auto" ? [] : permissions()))
+  const promptedPermissions = createMemo(() =>
+    local.permission.mode === "auto"
+      ? permissions().filter((request) => manualAsk.has(request.id))
+      : permissions(),
+  )
   const forms = createMemo(() => {
     const global = data.session.form.list("global", location()) ?? []
     if (session()?.parentID) return global
@@ -264,6 +268,12 @@ export function Session(props: {
   let autoSynced = false
   let autoRequested = false
   let autoSync = 0
+  let autoSent: string | undefined
+  const autoTarget = () => {
+    const directory = location()?.directory
+    const workspaceID = location()?.workspaceID
+    return directory ? { directory, ...(workspaceID ? { workspace: workspaceID } : {}) } : undefined
+  }
   createEffect(() => {
     if (!session()) return
     // Read connection status so a server restart re-runs the sync and
@@ -273,17 +283,25 @@ export function Session(props: {
     const generation = ++autoSync
     if (!enabled && !autoRequested) return
     if (enabled) autoRequested = true
-    const directory = location()?.directory
-    const workspaceID = location()?.workspaceID
+    const target = autoTarget()
+    const syncKey = `${enabled}:${JSON.stringify(target ?? null)}`
+    if (autoSent === syncKey) {
+      autoSynced = enabled
+      if (!enabled) autoRequested = false
+      return
+    }
+    const source = autoSent === undefined ? "mount" : ("sync" as const)
     const sync = (attempt: number): Promise<void> =>
       client.api.permission
         .auto({
           sessionID: route.sessionID,
           enabled,
-          ...(directory ? { location: { directory, ...(workspaceID ? { workspace: workspaceID } : {}) } } : {}),
+          source,
+          ...(target ? { location: target } : {}),
         })
         .then(() => {
           if (generation !== autoSync) return
+          autoSent = syncKey
           autoSynced = enabled
           if (!enabled) autoRequested = false
         })
@@ -303,31 +321,42 @@ export function Session(props: {
   onCleanup(() => {
     autoSync += 1
     if (!autoRequested && !autoSynced) return
-    const directory = location()?.directory
-    const workspaceID = location()?.workspaceID
+    // Only stand the server down when this instance was the last writer;
+    // a remounting successor re-asserts its own desired state right after.
+    const target = autoTarget()
+    if (autoSent !== `true:${JSON.stringify(target ?? null)}`) return
+    autoSent = undefined
     void client.api.permission
       .auto({
         sessionID: route.sessionID,
         enabled: false,
-        ...(directory ? { location: { directory, ...(workspaceID ? { workspace: workspaceID } : {}) } } : {}),
+        source: "cleanup",
+        ...(target ? { location: target } : {}),
       })
       .catch(() => {})
   })
   const autoReviewed = new Set<string>()
+  const manualAsk = new Set<string>()
   const autoDenials = { consecutive: 0, total: 0 }
   createEffect(() => {
     if (local.permission.mode !== "auto") return
+    const pending = new Set(permissions().map((request) => request.id))
+    for (const id of manualAsk) if (!pending.has(id)) manualAsk.delete(id)
     permissions().forEach((request) => {
-      if (autoReviewed.has(request.id)) return
+      if (autoReviewed.has(request.id) || manualAsk.has(request.id)) return
       autoReviewed.add(request.id)
       void client.api.permission
         .review({ sessionID: request.sessionID, requestID: request.id })
         .then((reviewed) => {
           if (local.permission.mode !== "auto") return
           if (reviewed.decision === "ask") {
+            // Escalate only this action to a human prompt and keep auto mode
+            // running for everything else. Leaving auto mode entirely is
+            // reserved for repeated denials, review failures, or an explicit
+            // toggle.
             autoReviewed.delete(request.id)
-            local.permission.set("normal")
-            toast.show({ variant: "warning", message: `Auto mode paused: ${reviewed.reason}` })
+            manualAsk.add(request.id)
+            toast.show({ variant: "warning", message: `Auto mode needs your review: ${reviewed.reason}` })
             return
           }
           if (reviewed.decision === "allow") {
