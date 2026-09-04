@@ -62,6 +62,7 @@ export const Definitions = {
   "service.restart": keybind("none", "Restart service"),
   "location.reload": keybind("none", "Reload configuration"),
   "permission.mode": keybind("none", "Toggle reviewed auto mode"),
+  "permission.denials": keybind("none", "Show recently denied auto mode actions"),
   "diff.open": keybind("none", "Open diff viewer"),
   "diff.close": keybind("escape,q", "Close diff viewer"),
   "diff.down": keybind("j,down", "Move diff viewer down"),
