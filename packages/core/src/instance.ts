@@ -22,6 +22,7 @@ import { ModelResolver } from "./model-resolver.js"
 import { Mcp } from "./mcp/index.js"
 import { Permission } from "./permission.js"
 import { PermissionAuto } from "./permission/auto.js"
+import { PermissionAutoState } from "./permission/state.js"
 import { Plugin } from "./plugin.js"
 import { PluginHooks } from "./plugin/hooks.js"
 import { InstancePlugins } from "./plugin/instance.js"
@@ -86,6 +87,7 @@ const nodes = [
   Formatter.node,
   Mcp.node,
   Permission.node,
+  PermissionAutoState.node,
   PermissionAuto.node,
   Tool.node,
   ToolOutput.node,

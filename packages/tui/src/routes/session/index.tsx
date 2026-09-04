@@ -337,7 +337,7 @@ export function Session(props: {
             sessionID: request.sessionID,
             reply: "reject",
             requestID: request.id,
-            message: `Auto mode blocked this action: ${reviewed.reason} Find a safer approach and do not bypass this boundary.`,
+            message: `Permission for this action has been denied. Reason: ${reviewed.reason}\n\nIMPORTANT: You *may* attempt to accomplish this action using other tools that might naturally be used to do so. However, if you have been denied permission for an action that seems essential to the user's request, you must not try to work around the denial using alternative tools.`,
           })
         })
         .catch((error) => {

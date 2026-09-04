@@ -10,6 +10,8 @@ import { Model } from "./model.js"
 export interface TextInput {
   readonly prompt: string
   readonly model?: Model.Ref
+  readonly generation?: { readonly maxTokens?: number; readonly temperature?: number; readonly stop?: ReadonlyArray<string> }
+  readonly promptCacheKey?: string
 }
 
 export class ModelSelectionError extends Schema.TaggedError<ModelSelectionError>()("Generate.ModelSelectionError", {
@@ -57,7 +59,14 @@ export const layer = Layer.effect(
             ? `Model unavailable: ${input.model.providerID}/${input.model.id}`
             : "No model specified and no supported model is available",
         })
-      const response = yield* llm.generate(LLM.request({ model: resolved.model, prompt: input.prompt })).pipe(
+      const response = yield* llm.generate(
+        LLM.request({
+          model: resolved.model,
+          prompt: input.prompt,
+          ...(input.generation ? { generation: input.generation } : {}),
+          ...(input.promptCacheKey ? { promptCacheKey: input.promptCacheKey } : {}),
+        }),
+      ).pipe(
         Effect.mapError(
           (error: AIError) =>
             new UnavailableError({

@@ -8348,6 +8348,321 @@
         "summary": "Remove saved permission"
       }
     },
+    "/api/permission/auto/defaults": {
+      "get": {
+        "tags": ["permission"],
+        "operationId": "v2.permission.auto_defaults",
+        "parameters": [
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "directory": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "workspace": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "required": false,
+            "style": "deepObject",
+            "explode": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "location": {
+                      "$ref": "#/components/schemas/Location.InfoEncoded"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "allow": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "soft_deny": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "hard_deny": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "environment": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["allow", "soft_deny", "hard_deny", "environment"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["location", "data"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestErrorEncoded"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedErrorEncoded"
+                }
+              }
+            }
+          }
+        },
+        "description": "Return the built-in auto mode classifier rules.",
+        "summary": "Get auto mode defaults"
+      }
+    },
+    "/api/permission/auto/config": {
+      "get": {
+        "tags": ["permission"],
+        "operationId": "v2.permission.auto_config",
+        "parameters": [
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "directory": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "workspace": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "required": false,
+            "style": "deepObject",
+            "explode": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "location": {
+                      "$ref": "#/components/schemas/Location.InfoEncoded"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "allow": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "soft_deny": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "hard_deny": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "environment": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["allow", "soft_deny", "hard_deny", "environment"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["location", "data"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestErrorEncoded"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedErrorEncoded"
+                }
+              }
+            }
+          }
+        },
+        "description": "Return the effective auto mode classifier rules with user settings applied.",
+        "summary": "Get effective auto mode config"
+      }
+    },
+    "/api/session/{sessionID}/permission/auto": {
+      "put": {
+        "tags": ["permission"],
+        "operationId": "v2.session.permission.auto",
+        "parameters": [
+          {
+            "name": "sessionID",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "pattern": "^ses"
+            },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "204": {
+            "description": "<No Content>"
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestErrorEncoded"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedErrorEncoded"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "SessionNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/SessionNotFoundErrorEncoded"
+                    },
+                    {
+                      "$ref": "#/components/schemas/SessionNotFoundErrorEncoded"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "description": "Enable or disable reviewed auto mode for a session family.",
+        "summary": "Set reviewed auto mode",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "enabled": {
+                    "type": "boolean"
+                  }
+                },
+                "required": ["enabled"],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
     "/api/session/{sessionID}/permission": {
       "post": {
         "tags": ["permission"],
@@ -8647,6 +8962,288 @@
         },
         "description": "Retrieve a pending permission request owned by a session.",
         "summary": "Get permission request"
+      }
+    },
+    "/api/session/{sessionID}/permission/{requestID}/review": {
+      "post": {
+        "tags": ["permission"],
+        "operationId": "v2.session.permission.review",
+        "parameters": [
+          {
+            "name": "sessionID",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "pattern": "^ses"
+            },
+            "required": true
+          },
+          {
+            "name": "requestID",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "pattern": "^per"
+            },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Permission.Review"
+                    }
+                  },
+                  "required": ["data"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestErrorEncoded"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedErrorEncoded"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "SessionNotFoundError | PermissionNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/PermissionNotFoundErrorEncoded"
+                    },
+                    {
+                      "$ref": "#/components/schemas/SessionNotFoundErrorEncoded"
+                    },
+                    {
+                      "$ref": "#/components/schemas/SessionNotFoundErrorEncoded"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "description": "Classify a pending permission using reviewed auto mode without executing the action.",
+        "summary": "Review pending permission"
+      }
+    },
+    "/api/session/{sessionID}/permission/denials": {
+      "get": {
+        "tags": ["permission"],
+        "operationId": "v2.session.permission.denials",
+        "parameters": [
+          {
+            "name": "sessionID",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "pattern": "^ses"
+            },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "request": {
+                            "$ref": "#/components/schemas/Permission.Request"
+                          },
+                          "review": {
+                            "$ref": "#/components/schemas/Permission.Review"
+                          },
+                          "time": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["Infinity", "-Infinity", "NaN"]
+                              }
+                            ]
+                          }
+                        },
+                        "required": ["request", "review", "time"],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["data"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestErrorEncoded"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedErrorEncoded"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "SessionNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionNotFoundErrorEncoded"
+                }
+              }
+            }
+          }
+        },
+        "description": "Retrieve recent actions the auto mode classifier denied for a session family.",
+        "summary": "List auto mode denials"
+      }
+    },
+    "/api/session/{sessionID}/permission/auto/status": {
+      "get": {
+        "tags": ["permission"],
+        "operationId": "v2.session.permission.auto_status",
+        "parameters": [
+          {
+            "name": "sessionID",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "pattern": "^ses"
+            },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "consecutive": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity", "-Infinity", "NaN"]
+                            }
+                          ]
+                        },
+                        "total": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity", "-Infinity", "NaN"]
+                            }
+                          ]
+                        },
+                        "broken": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": ["enabled", "consecutive", "total", "broken"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["data"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestErrorEncoded"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedErrorEncoded"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "SessionNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionNotFoundErrorEncoded"
+                }
+              }
+            }
+          }
+        },
+        "description": "Retrieve reviewed auto mode state and circuit-breaker counters for a session family.",
+        "summary": "Get auto mode status"
       }
     },
     "/api/session/{sessionID}/permission/{requestID}/reply": {
@@ -13925,6 +14522,76 @@
           "permissions": {
             "$ref": "#/components/schemas/Permission.Ruleset"
           },
+          "permission_auto": {
+            "type": "object",
+            "properties": {
+              "model": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[^/#]+\\/[^#]+(?:#[^#]+)?$"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "providerID": {
+                        "type": "string",
+                        "pattern": "^[^/#]+$"
+                      },
+                      "model": {
+                        "type": "string",
+                        "pattern": "^[^#]+$"
+                      },
+                      "variant": {
+                        "type": "string",
+                        "pattern": "^[^#]+$"
+                      }
+                    },
+                    "required": ["providerID", "model"],
+                    "additionalProperties": false
+                  }
+                ]
+              },
+              "environment": {
+                "type": "string"
+              },
+              "block": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "soft_deny": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "hard_deny": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "allow": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "classifyAllShell": {
+                "type": "boolean"
+              },
+              "classifier": {
+                "type": "string",
+                "enum": ["both", "fast", "thinking"]
+              },
+              "prompt_injection_probe": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false
+          },
           "agents": {
             "type": "object",
             "additionalProperties": {
@@ -16491,6 +17158,23 @@
         "required": ["id", "sessionID", "action", "resources"],
         "additionalProperties": false
       },
+      "Permission.Review": {
+        "type": "object",
+        "properties": {
+          "decision": {
+            "$ref": "#/components/schemas/Permission.ReviewDecision"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": ["decision", "reason"],
+        "additionalProperties": false
+      },
+      "Permission.ReviewDecision": {
+        "type": "string",
+        "enum": ["allow", "deny", "ask"]
+      },
       "Permission.Rule": {
         "type": "object",
         "properties": {
@@ -18221,6 +18905,12 @@
             "type": "string",
             "enum": ["auto", "manual"]
           },
+          "model": {
+            "$ref": "#/components/schemas/Model.Ref"
+          },
+          "providerState": {
+            "$ref": "#/components/schemas/Session.Message.ProviderState_5"
+          },
           "summary": {
             "type": "string"
           },
@@ -18446,6 +19136,9 @@
         "type": "object"
       },
       "Session.Message.ProviderState_4": {
+        "type": "object"
+      },
+      "Session.Message.ProviderState_5": {
         "type": "object"
       },
       "Session.Message.Shell": {

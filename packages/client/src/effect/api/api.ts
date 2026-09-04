@@ -1516,6 +1516,38 @@ export type PermissionSavedRemoveOperation<E = never> = (
   input: PermissionSavedRemoveInput,
 ) => Effect.Effect<PermissionSavedRemoveOutput, E>
 
+export type PermissionAutoDefaultsInput = {
+  readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+}
+export type PermissionAutoDefaultsOutput = {
+  readonly location: Location.Info
+  readonly data: {
+    readonly allow: ReadonlyArray<string>
+    readonly soft_deny: ReadonlyArray<string>
+    readonly hard_deny: ReadonlyArray<string>
+    readonly environment: string
+  }
+}
+export type PermissionAutoDefaultsOperation<E = never> = (
+  input?: PermissionAutoDefaultsInput,
+) => Effect.Effect<PermissionAutoDefaultsOutput, E>
+
+export type PermissionAutoConfigInput = {
+  readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+}
+export type PermissionAutoConfigOutput = {
+  readonly location: Location.Info
+  readonly data: {
+    readonly allow: ReadonlyArray<string>
+    readonly soft_deny: ReadonlyArray<string>
+    readonly hard_deny: ReadonlyArray<string>
+    readonly environment: string
+  }
+}
+export type PermissionAutoConfigOperation<E = never> = (
+  input?: PermissionAutoConfigInput,
+) => Effect.Effect<PermissionAutoConfigOutput, E>
+
 export type PermissionAutoInput = { readonly sessionID: Session.ID; readonly enabled: boolean }
 export type PermissionAutoOutput = void
 export type PermissionAutoOperation<E = never> = (input: PermissionAutoInput) => Effect.Effect<PermissionAutoOutput, E>
@@ -1549,6 +1581,27 @@ export type PermissionReviewOperation<E = never> = (
   input: PermissionReviewInput,
 ) => Effect.Effect<PermissionReviewOutput, E>
 
+export type PermissionDenialsInput = { readonly sessionID: Session.ID }
+export type PermissionDenialsOutput = ReadonlyArray<{
+  readonly request: Permission.Request
+  readonly review: Permission.Review
+  readonly time: number
+}>
+export type PermissionDenialsOperation<E = never> = (
+  input: PermissionDenialsInput,
+) => Effect.Effect<PermissionDenialsOutput, E>
+
+export type PermissionAutoStatusInput = { readonly sessionID: Session.ID }
+export type PermissionAutoStatusOutput = {
+  readonly enabled: boolean
+  readonly consecutive: number
+  readonly total: number
+  readonly broken: boolean
+}
+export type PermissionAutoStatusOperation<E = never> = (
+  input: PermissionAutoStatusInput,
+) => Effect.Effect<PermissionAutoStatusOutput, E>
+
 export type PermissionReplyInput = {
   readonly sessionID: Session.ID
   readonly requestID: Permission.ID
@@ -1563,11 +1616,15 @@ export type PermissionReplyOperation<E = never> = (
 export interface PermissionApi<E = never> {
   readonly request: { readonly list: PermissionRequestListOperation<E> }
   readonly saved: { readonly list: PermissionSavedListOperation<E>; readonly remove: PermissionSavedRemoveOperation<E> }
+  readonly auto_defaults: PermissionAutoDefaultsOperation<E>
+  readonly auto_config: PermissionAutoConfigOperation<E>
   readonly auto: PermissionAutoOperation<E>
   readonly create: PermissionCreateOperation<E>
   readonly list: PermissionListOperation<E>
   readonly get: PermissionGetOperation<E>
   readonly review: PermissionReviewOperation<E>
+  readonly denials: PermissionDenialsOperation<E>
+  readonly auto_status: PermissionAutoStatusOperation<E>
   readonly reply: PermissionReplyOperation<E>
 }
 

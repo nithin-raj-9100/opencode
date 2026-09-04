@@ -1905,7 +1905,11 @@ export type ConfigEntry =
           model?: string | { providerID: string; model: string; variant?: string }
           environment?: string
           block?: Array<string>
+          soft_deny?: Array<string>
+          hard_deny?: Array<string>
           allow?: Array<string>
+          classifyAllShell?: boolean
+          classifier?: "both" | "fast" | "thinking"
           prompt_injection_probe?: boolean
         }
         agents?: {
@@ -5582,6 +5586,28 @@ export type PermissionSavedRemoveInput = { readonly id: { readonly id: string }[
 
 export type PermissionSavedRemoveOutput = void
 
+export type PermissionAutoDefaultsInput = {
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+}
+
+export type PermissionAutoDefaultsOutput = {
+  location: { directory: string; workspaceID?: string; project: { id: string; directory: string; canonical: string } }
+  data: { allow: Array<string>; soft_deny: Array<string>; hard_deny: Array<string>; environment: string }
+}
+
+export type PermissionAutoConfigInput = {
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+}
+
+export type PermissionAutoConfigOutput = {
+  location: { directory: string; workspaceID?: string; project: { id: string; directory: string; canonical: string } }
+  data: { allow: Array<string>; soft_deny: Array<string>; hard_deny: Array<string>; environment: string }
+}
+
 export type PermissionAutoInput = {
   readonly sessionID: { readonly sessionID: string }["sessionID"]
   readonly enabled: { readonly enabled: boolean }["enabled"]
@@ -5675,6 +5701,18 @@ export type PermissionReviewInput = {
 }
 
 export type PermissionReviewOutput = { data: PermissionReview }["data"]
+
+export type PermissionDenialsInput = { readonly sessionID: { readonly sessionID: string }["sessionID"] }
+
+export type PermissionDenialsOutput = {
+  data: Array<{ request: PermissionRequest; review: PermissionReview; time: number | "Infinity" | "-Infinity" | "NaN" }>
+}["data"]
+
+export type PermissionAutoStatusInput = { readonly sessionID: { readonly sessionID: string }["sessionID"] }
+
+export type PermissionAutoStatusOutput = {
+  data: { enabled: boolean; consecutive: number; total: number; broken: boolean }
+}["data"]
 
 export type PermissionReplyInput = {
   readonly sessionID: { readonly sessionID: string; readonly requestID: string }["sessionID"]

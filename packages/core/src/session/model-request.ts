@@ -20,7 +20,7 @@ import { SessionSchema } from "./schema.js"
 import { SessionSystemPrompt } from "./system-prompt.js"
 import { toLLMMessages } from "./runner/to-llm-message.js"
 import type { SessionMessage } from "./message.js"
-import { PermissionAuto } from "../permission/auto.js"
+import { AUTO_PREAMBLE, PermissionAuto } from "../permission/auto.js"
 
 const IMAGE_BYTES_TRIGGER = 25 * 1024 * 1024 // 25 MiB
 const IMAGE_BYTES_TARGET = 15 * 1024 * 1024 // 15 MiB
@@ -318,6 +318,10 @@ export const layer = Layer.effect(
         providerOptions: {},
       }
       if (input.contextHooks !== false) yield* hooks.trigger("session", "context", context)
+      if (input.contextHooks !== false && Option.isSome(auto)) {
+        const active = yield* auto.value.enabled(session.id).pipe(Effect.orElseSucceed(() => false))
+        if (active) context.system.push(SystemPart.make(AUTO_PREAMBLE))
+      }
       // Match each surviving entry back to its tool, by recognizing a moved definition or
       // by key. Identity wins so a definition moved onto another tool's name still executes
       // the tool it describes. Entries matching neither were invented by a hook and dropped.

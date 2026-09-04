@@ -6,11 +6,13 @@ import { Permission } from "@opencode-ai/schema/permission"
 import { Bus } from "./bus.js"
 import { Location } from "./location.js"
 import { Agent } from "./agent.js"
+import { Config } from "./config.js"
 import { SessionErrors } from "./session/error.js"
 import { SessionSchema } from "./session/schema.js"
 import { SessionStore } from "./session/store.js"
 import { Wildcard } from "./util/wildcard.js"
 import { PermissionSaved } from "./permission/saved.js"
+import { PermissionAutoState } from "./permission/state.js"
 import { PluginHooks } from "./plugin/hooks.js"
 
 const PermissionEffect = Permission.Effect
@@ -126,6 +128,8 @@ const layer = Layer.effect(
     const sessions = yield* SessionStore.Service
     const saved = yield* PermissionSaved.Service
     const hooks = yield* PluginHooks.Service
+    const autostate = yield* PermissionAutoState.Service
+    const config = yield* Config.Service
     const pending = new Map<ID, Pending>()
 
     yield* Effect.addFinalizer(() =>
@@ -140,21 +144,49 @@ const layer = Layer.effect(
       ),
     )
 
-    const savedRules = Effect.fnUntraced(function* () {
-      return (yield* saved.list({ projectID: location.project.id })).map(
-        (item): Permission.Rule => ({
-          action: item.action,
-          resource: item.resource,
-          effect: "allow",
-        }),
-      )
-    })
-
     const configured = Effect.fnUntraced(function* (sessionID: SessionSchema.ID, agentID?: Agent.ID) {
       const session = yield* sessions.get(sessionID)
       if (!session) return yield* new SessionErrors.NotFoundError({ sessionID })
       const agent = yield* agents.resolve(agentID ?? session.agent)
       return agent?.permissions ?? missingAgentPermissions
+    })
+
+    const rootID: (sessionID: SessionSchema.ID) => Effect.Effect<SessionSchema.ID> = Effect.fn("Permission.rootID")(
+      function* (sessionID: SessionSchema.ID) {
+        const session = yield* sessions.get(sessionID)
+        if (!session?.parentID) return sessionID
+        return yield* rootID(session.parentID)
+      },
+    )
+
+    const autoStrippedSaved = Effect.fnUntraced(function* (sessionID: SessionSchema.ID) {
+      const items = yield* saved.list({ projectID: location.project.id })
+      const root = yield* rootID(sessionID)
+      const active = yield* autostate.isActive(root)
+      if (!active) {
+        return items.map(
+          (item): Permission.Rule => ({
+            action: item.action,
+            resource: item.resource,
+            effect: "allow",
+          }),
+        )
+      }
+      const entries = yield* config.entries()
+      const scoped = entries.filter((entry) => {
+        if (entry.type !== "document" || !entry.path) return true
+        return !entry.path.startsWith(`${location.directory}/`)
+      })
+      const classifyAll = Config.latest(scoped, "permission_auto")?.classifyAllShell === true
+      return items
+        .filter((item) => !PermissionAutoState.shouldStripAllow(item.action, item.resource, classifyAll))
+        .map(
+          (item): Permission.Rule => ({
+            action: item.action,
+            resource: item.resource,
+            effect: "allow",
+          }),
+        )
     })
 
     function denied(input: Pick<Request, "action" | "resources">, rules: Permission.Ruleset) {
@@ -168,7 +200,7 @@ const layer = Layer.effect(
     const evaluateInput = Effect.fnUntraced(function* (input: AssertInput) {
       const rules = yield* configured(input.sessionID, input.agent)
       if (denied(input, rules)) return { effect: "deny" as const, rules }
-      const all = [...rules, ...(yield* savedRules())]
+      const all = [...rules, ...(yield* autoStrippedSaved(input.sessionID))]
       const effects = input.resources.map((resource) => evaluate(input.action, resource, all).effect)
       const effect: Permission.Effect = effects.includes("ask") ? "ask" : "allow"
       const event = yield* hooks.trigger("permission", "evaluate", {
@@ -328,5 +360,14 @@ const layer = Layer.effect(
 export const node = makeLocationNode({
   service: Service,
   layer,
-  deps: [Bus.node, Location.node, Agent.node, SessionStore.node, PermissionSaved.node, PluginHooks.node],
+  deps: [
+    Bus.node,
+    Location.node,
+    Agent.node,
+    SessionStore.node,
+    PermissionSaved.node,
+    PluginHooks.node,
+    PermissionAutoState.node,
+    Config.node,
+  ],
 })
