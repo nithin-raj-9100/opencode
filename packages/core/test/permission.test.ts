@@ -282,7 +282,20 @@ describe("Permission", () => {
           }),
         ),
       ).toMatchObject({
-        effect: "ask",
+        effect: "allow",
+      })
+      expect(
+        yield* service.ask(
+          assertion({
+            action: "edit",
+            resources: ["~/.local/libexec/opencode3-sync-and-build.sh"],
+          }),
+        ),
+      ).toMatchObject({
+        effect: "allow",
+      })
+      expect(yield* service.ask(assertion({ action: "write", resources: [".env"] }))).toMatchObject({
+        effect: "allow",
       })
     }),
   )
@@ -387,6 +400,30 @@ describe("Permission", () => {
         }),
       )
       yield* service.assert(assertion({ action: "shell", resources: ["kubectl get pods"] }))
+      expect(classified).toBe(0)
+      expect(yield* service.list()).toEqual([])
+    }),
+  )
+
+  it.effect("auto-allows file edits in auto mode without the classifier", () =>
+    Effect.gen(function* () {
+      yield* setup([{ action: "edit", resource: "*", effect: "ask" }])
+      const autostate = yield* PermissionAutoState.Service
+      let classified = 0
+      yield* autostate.bindClassifier(() => {
+        classified++
+        return Effect.succeed(PermissionAuto.unevaluated())
+      })
+      yield* autostate.activate(Session.ID.make("ses_test"))
+      const service = yield* Permission.Service
+      yield* service.assert(
+        assertion({
+          action: "edit",
+          resources: ["~/.local/libexec/opencode3-sync-and-build.sh"],
+        }),
+      )
+      yield* service.assert(assertion({ action: "write", resources: [".env"] }))
+      yield* service.assert(assertion({ action: "patch", resources: ["/tmp/outside.ts"] }))
       expect(classified).toBe(0)
       expect(yield* service.list()).toEqual([])
     }),
