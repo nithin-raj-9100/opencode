@@ -117,6 +117,7 @@ describe("PermissionAuto", () => {
     expect(text).toContain("Only /project is trusted.")
     expect(text).toContain("WORKING DIRECTORY")
     expect(text).toContain("Read-only observation")
+    expect(text).toContain("File edits")
     expect(text).toContain("harm classes")
   })
 
@@ -129,10 +130,15 @@ describe("PermissionAuto", () => {
     expect(PermissionAuto.isSafeTool("external_directory")).toBe(true)
     expect(PermissionAuto.isSafeTool("webfetch")).toBe(true)
     expect(PermissionAuto.isSafeTool("shell")).toBe(false)
+    expect(PermissionAuto.isEditTool("edit")).toBe(true)
+    expect(PermissionAuto.isEditTool("write")).toBe(true)
+    expect(PermissionAuto.isEditTool("patch")).toBe(true)
+    expect(PermissionAuto.isEditTool("shell")).toBe(false)
     expect(PermissionAuto.isCriticalRemoval("shell", ["rm -rf / --no-preserve-root"])).toBe(true)
     expect(PermissionAuto.isCriticalRemoval("shell", ["rm -rf ~"])).toBe(true)
     expect(PermissionAuto.isCriticalRemoval("shell", ["git status"])).toBe(false)
     expect(PermissionAuto.toAutoClassifierInput("read", ["file.ts"], {})).toBe("")
+    expect(PermissionAuto.toAutoClassifierInput("edit", ["~/.local/libexec/opencode3-sync-and-build.sh"], {})).toBe("")
     expect(
       PermissionAuto.isHelpOnlyCommand(
         'npx wrangler --help 2>&1 | head -n 80; echo "==="; npx wrangler workers --help 2>&1 | head -n 60',
@@ -210,6 +216,11 @@ describe("PermissionAuto", () => {
     expect(gate("shell", ["git status"])).toEqual(allow)
     expect(gate("shell", ["git push origin main"], { contentScopedAsk: true, allowed: true })).toEqual(askHuman)
     expect(gate("edit", ["src/index.ts"])).toEqual(allow)
+    expect(gate("edit", ["/tmp/outside.ts"])).toEqual(allow)
+    expect(gate("edit", ["~/.local/libexec/opencode3-sync-and-build.sh"])).toEqual(allow)
+    expect(gate("write", [".env"])).toEqual(allow)
+    expect(gate("patch", ["~/.ssh/config"])).toEqual(allow)
+    expect(gate("edit", [".env"], { denied: true })).toEqual({ effect: "deny", classify: false })
     expect(
       gate("shell", [
         'npx wrangler --help 2>&1 | head -n 80; echo "==="; npx wrangler workers --help 2>&1 | head -n 60',
