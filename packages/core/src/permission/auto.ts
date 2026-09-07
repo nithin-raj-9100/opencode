@@ -46,6 +46,7 @@ export const DEFAULT_ALLOWS = [
   "Test Artifacts: hardcoded test API keys or placeholder credentials authored as placeholders.",
   "Local Operations: deleting local files in the working directory and other local-only operations within project scope.",
   "File edits: creating or modifying files with edit, write, or patch — any path or extension, including scripts, env files, and locations outside the working directory. Configured deny rules still apply.",
+  "Subagent delegation: launching built-in or user-defined subagents. Configured deny rules still apply.",
   "Read-only observation: commands and APIs that only inspect state — reads, lists, status, plans, dry-runs, help/version, GET-like HTTP, and query languages that do not mutate. Which vendor, tool, or language is used does not matter. Length, joins, aggregates, formatting, and wrappers do not turn a read into a write. Mutating verbs, POST/PUT/PATCH/DELETE, apply/deploy/push, schema or data writes, and executing unknown files are not this exception. PREEMPTIVE BLOCK ON CLEAR INTENT still applies: if the transcript shows the agent using reads to scout for a blocked action, block it.",
   "Wrappers and runners: package runners, language launchers, containers, and env wrappers inherit the inner command's effect. Help or version of any tool is a read; a destructive inner command is a write.",
   "Declared Dependencies: installing packages already declared in requirements.txt, package.json, or lockfiles, not agent-chosen names.",
@@ -60,6 +61,9 @@ export const READ_TOOLS = new Set(["read", "grep", "glob", "list", "external_dir
 
 /** File writes via edit/write/patch. Auto mode allows these without the classifier or a human prompt. */
 export const EDIT_TOOLS = new Set(["edit", "write", "patch"])
+
+/** Subagent spawn. Auto mode allows these without the classifier or a human prompt. */
+export const SUBAGENT_ACTIONS = new Set(["subagent", "agent", "task"])
 
 export const SAFE_TOOLS = new Set([
   ...READ_TOOLS,
@@ -81,6 +85,10 @@ export function isEditTool(action: string) {
   return EDIT_TOOLS.has(action)
 }
 
+export function isSubagentAction(action: string) {
+  return SUBAGENT_ACTIONS.has(action)
+}
+
 export function isSafeTool(action: string) {
   return SAFE_TOOLS.has(action)
 }
@@ -94,7 +102,7 @@ export function isContentScopedAsk(match: {
   resource: string
 }) {
   if (match.effect !== "ask" || match.implicit) return false
-  if (isSafeTool(match.action) || isEditTool(match.action)) return false
+  if (isSafeTool(match.action) || isEditTool(match.action) || isSubagentAction(match.action)) return false
   // `shell *` / `* *` ask is the default remaining policy after auto mode
   // strips broad allows. Those still go to the classifier. Only a narrower
   // pattern such as `git push *` skips it for a human prompt.
@@ -153,6 +161,9 @@ export function autoGate(input: {
   // Edits of any file — including .sh, .env, and paths outside the working
   // directory — skip the classifier. Configured deny rules still win above.
   if (isEditTool(input.action)) return { effect: "allow" as const, classify: false }
+  // Built-in (general, explore) and user-defined subagents skip the classifier.
+  // Configured deny rules still win above.
+  if (isSubagentAction(input.action)) return { effect: "allow" as const, classify: false }
   if (input.contentScopedAsk) return { effect: "ask" as const, classify: false }
   if (input.allowed) return { effect: "allow" as const, classify: false }
   if (isHelpOnly(input.action, input.resources)) return { effect: "allow" as const, classify: false }
@@ -422,7 +433,7 @@ export function isReadOnly(action: string, resources: ReadonlyArray<string>) {
 }
 
 export function toAutoClassifierInput(action: string, resources: ReadonlyArray<string>, metadata: unknown) {
-  if (isSafeTool(action) || isEditTool(action)) return ""
+  if (isSafeTool(action) || isEditTool(action) || isSubagentAction(action)) return ""
   const record = typeof metadata === "object" && metadata !== null ? (metadata as Record<string, unknown>) : {}
   if (action === "shell" || action === "bash") {
     const command = typeof record["command"] === "string" ? (record["command"] as string) : resources.join(", ")
@@ -431,11 +442,6 @@ export function toAutoClassifierInput(action: string, resources: ReadonlyArray<s
   if (action === "webfetch" || action === "websearch") {
     const target = typeof record["url"] === "string" ? (record["url"] as string) : resources.join(", ")
     return `${action} ${target}`.slice(0, 2000)
-  }
-  if (action === "subagent" || action === "agent") {
-    const description = typeof record["description"] === "string" ? record["description"] : ""
-    const prompt = typeof record["prompt"] === "string" ? record["prompt"] : ""
-    return `${action} ${resources.join(", ")}\n${description}\n${prompt}`.slice(0, 4000)
   }
   return `${action} ${resources.join(", ").slice(0, 2000)} ${JSON.stringify(record).slice(0, 2000)}`.trim()
 }
@@ -887,6 +893,11 @@ const layer = Layer.effect(
       }
       if (isSafeTool(request.action)) {
         const allowed = { decision: "allow" as const, reason: "Safe tool allowlist" }
+        yield* recordOutcome(rootID, allowed)
+        return allowed
+      }
+      if (isSubagentAction(request.action)) {
+        const allowed = { decision: "allow" as const, reason: "Subagent delegation" }
         yield* recordOutcome(rootID, allowed)
         return allowed
       }
