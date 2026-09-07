@@ -118,6 +118,7 @@ describe("PermissionAuto", () => {
     expect(text).toContain("WORKING DIRECTORY")
     expect(text).toContain("Read-only observation")
     expect(text).toContain("File edits")
+    expect(text).toContain("Subagent delegation")
     expect(text).toContain("harm classes")
   })
 
@@ -134,11 +135,16 @@ describe("PermissionAuto", () => {
     expect(PermissionAuto.isEditTool("write")).toBe(true)
     expect(PermissionAuto.isEditTool("patch")).toBe(true)
     expect(PermissionAuto.isEditTool("shell")).toBe(false)
+    expect(PermissionAuto.isSubagentAction("subagent")).toBe(true)
+    expect(PermissionAuto.isSubagentAction("agent")).toBe(true)
+    expect(PermissionAuto.isSubagentAction("task")).toBe(true)
+    expect(PermissionAuto.isSubagentAction("shell")).toBe(false)
     expect(PermissionAuto.isCriticalRemoval("shell", ["rm -rf / --no-preserve-root"])).toBe(true)
     expect(PermissionAuto.isCriticalRemoval("shell", ["rm -rf ~"])).toBe(true)
     expect(PermissionAuto.isCriticalRemoval("shell", ["git status"])).toBe(false)
     expect(PermissionAuto.toAutoClassifierInput("read", ["file.ts"], {})).toBe("")
     expect(PermissionAuto.toAutoClassifierInput("edit", ["~/.local/libexec/opencode3-sync-and-build.sh"], {})).toBe("")
+    expect(PermissionAuto.toAutoClassifierInput("subagent", ["general"], { description: "summarize" })).toBe("")
     expect(
       PermissionAuto.isHelpOnlyCommand(
         'npx wrangler --help 2>&1 | head -n 80; echo "==="; npx wrangler workers --help 2>&1 | head -n 60',
@@ -186,6 +192,9 @@ describe("PermissionAuto", () => {
     expect(
       PermissionAuto.isContentScopedAsk({ effect: "ask", implicit: false, action: "shell", resource: "git push *" }),
     ).toBe(true)
+    expect(
+      PermissionAuto.isContentScopedAsk({ effect: "ask", implicit: false, action: "subagent", resource: "general" }),
+    ).toBe(false)
   })
 
   test("gates auto mode by rule category, not by a specific command string", () => {
@@ -221,6 +230,13 @@ describe("PermissionAuto", () => {
     expect(gate("write", [".env"])).toEqual(allow)
     expect(gate("patch", ["~/.ssh/config"])).toEqual(allow)
     expect(gate("edit", [".env"], { denied: true })).toEqual({ effect: "deny", classify: false })
+    expect(gate("subagent", ["general"])).toEqual(allow)
+    expect(gate("subagent", ["explore"])).toEqual(allow)
+    expect(gate("subagent", ["reviewer"])).toEqual(allow)
+    expect(gate("agent", ["general"])).toEqual(allow)
+    expect(gate("task", ["explore"])).toEqual(allow)
+    expect(gate("subagent", ["general"], { contentScopedAsk: true })).toEqual(allow)
+    expect(gate("subagent", ["general"], { denied: true })).toEqual({ effect: "deny", classify: false })
     expect(
       gate("shell", [
         'npx wrangler --help 2>&1 | head -n 80; echo "==="; npx wrangler workers --help 2>&1 | head -n 60',
