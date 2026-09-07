@@ -325,6 +325,12 @@ describe("Permission", () => {
       expect(yield* service.ask(assertion({ action: "write", resources: [".env"] }))).toMatchObject({
         effect: "allow",
       })
+      expect(yield* service.ask(assertion({ action: "subagent", resources: ["general"] }))).toMatchObject({
+        effect: "allow",
+      })
+      expect(yield* service.ask(assertion({ action: "subagent", resources: ["explore"] }))).toMatchObject({
+        effect: "allow",
+      })
     }),
   )
 
@@ -452,6 +458,25 @@ describe("Permission", () => {
       )
       yield* service.assert(assertion({ action: "write", resources: [".env"] }))
       yield* service.assert(assertion({ action: "patch", resources: ["/tmp/outside.ts"] }))
+      expect(classified).toBe(0)
+      expect(yield* service.list()).toEqual([])
+    }),
+  )
+
+  it.effect("auto-allows subagent launches in auto mode without the classifier", () =>
+    Effect.gen(function* () {
+      yield* setup([{ action: "subagent", resource: "*", effect: "ask" }])
+      const autostate = yield* PermissionAutoState.Service
+      let classified = 0
+      yield* autostate.bindClassifier(() => {
+        classified++
+        return Effect.succeed(PermissionAuto.unevaluated("classifier unavailable"))
+      })
+      yield* autostate.activate(Session.ID.make("ses_test"))
+      const service = yield* Permission.Service
+      yield* service.assert(assertion({ action: "subagent", resources: ["general"] }))
+      yield* service.assert(assertion({ action: "subagent", resources: ["explore"] }))
+      yield* service.assert(assertion({ action: "subagent", resources: ["reviewer"] }))
       expect(classified).toBe(0)
       expect(yield* service.list()).toEqual([])
     }),
