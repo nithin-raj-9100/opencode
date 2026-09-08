@@ -5,10 +5,16 @@ import { Effect, FileSystem } from "effect"
 import { AppNodeBuilder } from "@opencode/core/effect/app-node-builder"
 import { Global } from "@opencode/util/global"
 import path from "node:path"
+import os from "node:os"
 import { createEventStream, createFetch, directory, json } from "./fixture/tui-client"
 import { tmpdir } from "./fixture/fixture"
 import { createAppFixture } from "./fixture/app"
 import type { PluginInfo } from "@opencode/client"
+
+// These tests boot the real app node, which otherwise resolves Global to the user's
+// actual XDG state directory and writes prompt history there.
+const testStateDir = path.join(os.tmpdir(), `opencode-tui-app-lifecycle-${process.pid}`)
+const globalState = Global.node.replace(Global.layerWith({ state: testStateDir }))
 
 test.each([100, 44])("Ctrl-O is immediate, dismissible, and prunes cached deletions at width %s", async (width) => {
   await using state = await tmpdir()
@@ -243,7 +249,7 @@ test("SIGHUP clears title and disposes scoped resources once", async () => {
         terminalHandoff: async () => ({ renderer: setup.renderer, mode: "dark", complete: () => {} }),
         args: {},
         log: () => {},
-      }).pipe(Effect.provide(AppNodeBuilder.build(Global.node)), Effect.provide(FileSystem.layerNoop({}))),
+      }).pipe(Effect.provide(AppNodeBuilder.build(Global.node, [globalState])), Effect.provide(FileSystem.layerNoop({}))),
     )
     await ready
     process.emit("SIGHUP")
@@ -332,7 +338,7 @@ test("session lifecycle updates the terminal title and prints the epilogue after
         terminalHandoff: async () => ({ renderer: setup.renderer, mode: "dark", complete: () => {} }),
         args: { sessionID: "dummy", auto: true },
         log: () => {},
-      }).pipe(Effect.provide(AppNodeBuilder.build(Global.node)), Effect.provide(FileSystem.layerNoop({}))),
+      }).pipe(Effect.provide(AppNodeBuilder.build(Global.node, [globalState])), Effect.provide(FileSystem.layerNoop({}))),
     )
 
     await Promise.all([initialTitleSet, autoEnabled.promise])
@@ -407,7 +413,7 @@ test("session title generated while an untitled session is loading remains visib
         terminalHandoff: async () => ({ renderer: setup.renderer, mode: "dark", complete: () => {} }),
         args: { sessionID: "dummy" },
         log: () => {},
-      }).pipe(Effect.provide(AppNodeBuilder.build(Global.node)), Effect.provide(FileSystem.layerNoop({}))),
+      }).pipe(Effect.provide(AppNodeBuilder.build(Global.node, [globalState])), Effect.provide(FileSystem.layerNoop({}))),
     )
 
     await sessionRequested.promise
@@ -833,7 +839,7 @@ test("session startup prompt is submitted exactly once", async () => {
         terminalHandoff: async () => ({ renderer: setup.renderer, mode: "dark", complete: () => {} }),
         args: { sessionID: "dummy", prompt: "RESUME_READY" },
         log: () => {},
-      }).pipe(Effect.provide(AppNodeBuilder.build(Global.node)), Effect.provide(FileSystem.layerNoop({}))),
+      }).pipe(Effect.provide(AppNodeBuilder.build(Global.node, [globalState])), Effect.provide(FileSystem.layerNoop({}))),
     )
 
     await Promise.race([
@@ -1367,7 +1373,7 @@ test.each(["manual", "select"] as const)(
           args: { sessionID: session.id },
           terminalHandoff: async () => ({ renderer: setup.renderer, mode: "dark", complete: ready.resolve }),
           log: () => {},
-        }).pipe(Effect.provide(AppNodeBuilder.build(Global.node)), Effect.provide(FileSystem.layerNoop({}))),
+        }).pipe(Effect.provide(AppNodeBuilder.build(Global.node, [globalState])), Effect.provide(FileSystem.layerNoop({}))),
       )
 
       await ready.promise

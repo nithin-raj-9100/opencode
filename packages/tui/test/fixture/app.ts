@@ -1,10 +1,15 @@
 import { createTestRenderer } from "@opentui/core/testing"
 import { Effect, FileSystem } from "effect"
-import { AppNodeBuilder } from "@opencode/core/effect/app-node-builder"
 import { Global } from "@opencode/util/global"
 import type { TuiInput } from "../../src/app"
 import type { Config } from "../../src/config"
+import path from "node:path"
+import os from "node:os"
 import { createEventStream, createFetch, type FetchHandler } from "./tui-client"
+
+// Callers that do not pin a state directory would otherwise resolve Global to the
+// user's real XDG state dir and write prompt history and other TUI state into it.
+const fallbackState = path.join(os.tmpdir(), `opencode-tui-test-${process.pid}`)
 
 export async function createAppFixture(
   input: {
@@ -38,7 +43,7 @@ export async function createAppFixture(
       args: input.args ?? {},
       log: () => {},
     }).pipe(
-      Effect.provide(input.state ? Global.layerWith({ state: input.state }) : AppNodeBuilder.build(Global.node)),
+      Effect.provide(Global.layerWith({ state: input.state ?? fallbackState })),
       Effect.provide(FileSystem.layerNoop({})),
     ),
   )
