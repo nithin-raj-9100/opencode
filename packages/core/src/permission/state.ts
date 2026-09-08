@@ -1,8 +1,8 @@
 export * as PermissionAutoState from "./state.js"
 
 import { Context, Effect, Layer } from "effect"
-import { makeLocationNode } from "@opencode-ai/util/effect/app-node"
-import type { Permission } from "@opencode-ai/schema/permission"
+import { makeLocationNode } from "@opencode/util/effect/app-node"
+import type { Permission } from "@opencode/schema/permission"
 
 type SessionID = Permission.Request["sessionID"]
 

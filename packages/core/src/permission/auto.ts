@@ -1,10 +1,10 @@
 export * as PermissionAuto from "./auto.js"
 
-import type { Permission } from "@opencode-ai/schema/permission"
-import type { Model } from "@opencode-ai/schema/model"
+import type { Permission } from "@opencode/schema/permission"
+import type { Model } from "@opencode/schema/model"
 import path from "path"
 import { Context, Effect, Layer } from "effect"
-import { makeLocationNode } from "@opencode-ai/util/effect/app-node"
+import { makeLocationNode } from "@opencode/util/effect/app-node"
 import { Config } from "../config.js"
 import { Generate } from "../generate.js"
 import { Location } from "../location.js"
