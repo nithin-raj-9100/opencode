@@ -30,7 +30,13 @@ import { useExit } from "../../context/exit"
 import { expandPromptInputPastedText, realignPromptInputMentions } from "../../prompt/mention"
 import { parseSlashHead } from "../../prompt/parse"
 import { createStore, produce, unwrap } from "solid-js/store"
-import { emptyPrompt, usePromptHistory, type PromptInfo, type PromptPartRef } from "../../prompt/history"
+import {
+  emptyPrompt,
+  promptHistoryScope,
+  usePromptHistory,
+  type PromptInfo,
+  type PromptPartRef,
+} from "../../prompt/history"
 import { registerComposer, saveDraft, takeDraft } from "./draft-stash"
 import { mergePrompts } from "../../prompt/merge"
 import { Skill } from "@opencode/schema/skill"
@@ -215,6 +221,15 @@ export function Prompt(props: PromptProps) {
   const toast = useToast()
   const status = createMemo(() => data.session.status(props.sessionID ?? ""))
   const history = usePromptHistory()
+  // Recall is scoped to the directory the composer is pointed at. Read per-render so a
+  // session that moves directories re-scopes instead of holding the old one.
+  const historyScope = createMemo(() => {
+    const session = props.sessionID ? data.session.get(props.sessionID) : undefined
+    return promptHistoryScope(
+      session?.location.directory ?? currentLocation.current?.directory ?? data.location.default().directory,
+    )
+  })
+  createEffect(() => void history.ensure(historyScope()))
   const stash = usePromptStash()
   const keymap = Keymap.use()
   const renderer = useRenderer()
@@ -1075,7 +1090,7 @@ export function Prompt(props: PromptProps) {
               return
             }
 
-            const item = history.move(-1, input.plainText)
+            const item = history.move(historyScope(), -1, input.plainText)
             if (!item) return false
             input.setText(item.text)
             setStore("prompt", item)
@@ -1115,7 +1130,7 @@ export function Prompt(props: PromptProps) {
               return
             }
 
-            const item = history.move(1, input.plainText)
+            const item = history.move(historyScope(), 1, input.plainText)
             if (!item) return false
             input.setText(item.text)
             setStore("prompt", item)
@@ -1329,7 +1344,7 @@ export function Prompt(props: PromptProps) {
         throw new Error(`Failed to switch model: ${errorMessage(error)}`, { cause: error })
       })
     }
-    const commitSelection = async () => {
+<    const commitSelection = async () => {
       await prepareAgent()
       await commitModel()
     }
@@ -1342,7 +1357,7 @@ export function Prompt(props: PromptProps) {
       })
       return true
     }
-    history.append(entry)
+    history.append(historyScope(), entry)
     if (currentMode === "shell") {
       move.startSubmit()
       const send = () => client.api.session.shell({ sessionID: target, command: inputText })
@@ -1561,7 +1576,7 @@ export function Prompt(props: PromptProps) {
       (store.prompt.files?.length ?? 0) > 0 ||
       (store.prompt.agents?.length ?? 0) > 0
     ) {
-      history.append({
+      history.append(historyScope(), {
         ...store.prompt,
         mode: store.mode,
       })
