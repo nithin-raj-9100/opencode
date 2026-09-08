@@ -67,6 +67,7 @@ import { usePromptRef } from "../../context/prompt"
 import { useEvent } from "../../context/event"
 import { emptyPrompt } from "../../prompt/history"
 import { projectedPromptInput } from "../../prompt/codec"
+import type { PromptInfo } from "../../prompt/history"
 import { deduplicateVisibleImages } from "../../prompt/attachment"
 import { useEpilogue } from "../../context/epilogue"
 import { normalizePath } from "../../util/path"
@@ -1545,6 +1546,15 @@ export function Session(props: {
                       const next = queuedPrompts()[0]
                       if (!next) return false
                       return mutatePending("steer", next.id)
+                    }}
+                    hasPendingPrompts={() => pendingUsers().length > 0}
+                    takeBackPending={async () => {
+                      const taken: PromptInfo[] = []
+                      for (const item of pendingUsers()) {
+                        if (!(await mutatePending("cancel", item.id))) continue
+                        taken.push({ ...projectedPromptInput(item.payload), pasted: [] })
+                      }
+                      return taken
                     }}
                     sessionID={route.sessionID}
                   />
