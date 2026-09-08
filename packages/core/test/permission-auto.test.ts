@@ -1,13 +1,13 @@
 import { describe, expect, test } from "bun:test"
 import { DateTime } from "effect"
-import { Agent } from "@opencode-ai/core/agent"
-import { Model } from "@opencode-ai/core/model"
-import { Permission } from "@opencode-ai/core/permission"
-import { PermissionAuto } from "@opencode-ai/core/permission/auto"
-import { PermissionAutoState } from "@opencode-ai/core/permission/state"
-import { Provider } from "@opencode-ai/core/provider"
-import { Session } from "@opencode-ai/core/session"
-import { SessionMessage } from "@opencode-ai/core/session/message"
+import { Agent } from "@opencode/core/agent"
+import { Model } from "@opencode/core/model"
+import { Permission } from "@opencode/core/permission"
+import { PermissionAuto } from "@opencode/core/permission/auto"
+import { PermissionAutoState } from "@opencode/core/permission/state"
+import { Provider } from "@opencode/core/provider"
+import { Session } from "@opencode/core/session"
+import { SessionMessage } from "@opencode/core/session/message"
 
 const created = DateTime.makeUnsafe(0)
 const request = {
