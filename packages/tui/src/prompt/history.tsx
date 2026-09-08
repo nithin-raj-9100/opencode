@@ -1,9 +1,9 @@
 import path from "path"
 import { measureEditText, type WidthMethod } from "@opentui/core"
-import { onMount } from "solid-js"
 import { createStore, produce, unwrap } from "solid-js/store"
 import type { PromptInput } from "@opencode/schema"
 import type { Types } from "effect"
+import { Hash } from "@opencode/util/hash"
 import { createSimpleContext } from "../context/helper"
 import { useTuiPaths } from "../context/runtime"
 import { appendText, readText, writeText } from "../util/persistence"
@@ -90,45 +90,77 @@ export function parsePromptInfo(value: unknown): PromptInfo | undefined {
   return input as PromptInfo
 }
 
+export function promptHistoryScope(directory: string | undefined): string {
+  return directory ?? ""
+}
+
 const { use: useHistoryEntries, provider: PromptHistoryProvider } = createSimpleContext({
   name: "PromptHistory",
   init: () => {
     const paths = useTuiPaths()
-    const historyPath = path.join(paths.state, "prompt-history.jsonl")
-    onMount(async () => {
-      const lines = parsePromptHistory(await readText(historyPath).catch(() => ""))
-      setStore("history", lines)
+    // Pre-scoping history lived in one global file; it seeds a directory the first
+    // time that directory is used, so upgrading does not empty the composer's recall.
+    const legacyPath = path.join(paths.state, "prompt-history.jsonl")
+    const scopePath = (scope: string) =>
+      path.join(paths.state, "prompt-history", `${scope ? Hash.fast(scope) : "global"}.jsonl`)
 
-      // Rewrite valid retained entries to self-heal corruption and enforce the limit.
-      if (lines.length > 0)
-        writeText(historyPath, lines.map((line) => JSON.stringify(line)).join("\n") + "\n").catch(() => {})
-    })
+    const [store, setStore] = createStore({ history: {} as Record<string, PromptInfo[]> })
+    const loading = new Map<string, Promise<void>>()
 
-    const [store, setStore] = createStore({ history: [] as PromptInfo[] })
+    function entries(scope: string) {
+      return store.history[scope] ?? []
+    }
+
+    function persist(scope: string, lines: PromptInfo[]) {
+      return writeText(scopePath(scope), lines.map((line) => JSON.stringify(line)).join("\n") + "\n").catch(() => {})
+    }
+
+    // The provider is an app singleton, so scopes are loaded lazily on first use
+    // rather than at mount. Consumers call ensure() when their directory changes so
+    // the read has settled before the first arrow press.
+    function ensure(scope: string) {
+      const inflight = loading.get(scope)
+      if (inflight) return inflight
+      const task = (async () => {
+        const scoped = parsePromptHistory(await readText(scopePath(scope)).catch(() => ""))
+        if (scoped.length > 0) {
+          setStore("history", scope, scoped)
+          // Rewrite valid retained entries to self-heal corruption and enforce the limit.
+          await persist(scope, scoped)
+          return
+        }
+        const seed = parsePromptHistory(await readText(legacyPath).catch(() => ""))
+        setStore("history", scope, seed)
+        if (seed.length > 0) await persist(scope, seed)
+      })()
+      loading.set(scope, task)
+      return task
+    }
 
     return {
-      get entries() {
-        return store.history
-      },
-      append(item: PromptInfo) {
+      ensure,
+      entries,
+      append(scope: string, item: PromptInfo) {
+        void ensure(scope)
         const entry = structuredClone(unwrap(item))
-        if (isDuplicateEntry(store.history.at(-1), entry)) return
+        if (isDuplicateEntry(entries(scope).at(-1), entry)) return
         let trimmed = false
         setStore(
           produce((draft) => {
-            draft.history.push(entry)
-            if (draft.history.length > MAX_HISTORY_ENTRIES) {
-              draft.history = draft.history.slice(-MAX_HISTORY_ENTRIES)
+            const list = (draft.history[scope] ??= [])
+            list.push(entry)
+            if (list.length > MAX_HISTORY_ENTRIES) {
+              draft.history[scope] = list.slice(-MAX_HISTORY_ENTRIES)
               trimmed = true
             }
           }),
         )
 
         if (trimmed) {
-          writeText(historyPath, store.history.map((line) => JSON.stringify(line)).join("\n") + "\n").catch(() => {})
+          void persist(scope, entries(scope))
           return
         }
-        appendText(historyPath, JSON.stringify(entry) + "\n").catch(() => {})
+        appendText(scopePath(scope), JSON.stringify(entry) + "\n").catch(() => {})
       },
     }
   },
@@ -145,14 +177,19 @@ export function usePromptHistory(currentDraft = emptyPrompt) {
     draft = undefined
   }
   return {
-    move(direction: 1 | -1, input: string) {
+    ensure(scope: string) {
+      return history.ensure(scope)
+    },
+    move(scope: string, direction: 1 | -1, input: string) {
+      void history.ensure(scope)
+      const entries = history.entries(scope)
       const next = index + direction
-      if (next < -history.entries.length || next > 0) return
-      if (index < 0 && input && history.entries.at(index)?.text !== input) return
+      if (next < -entries.length || next > 0) return
+      if (index < 0 && input && entries.at(index)?.text !== input) return
       if (index === 0) draft = structuredClone({ ...currentDraft(), text: input })
       index = next
       if (next !== 0) {
-        const entry = history.entries.at(next)
+        const entry = entries.at(next)
         return entry ? { ...emptyPrompt(), ...structuredClone(unwrap(entry)) } : undefined
       }
       const restored = draft
@@ -160,9 +197,9 @@ export function usePromptHistory(currentDraft = emptyPrompt) {
       return restored
     },
     reset,
-    append(item: PromptInfo) {
+    append(scope: string, item: PromptInfo) {
       reset()
-      history.append(item)
+      history.append(scope, item)
     },
   }
 }
