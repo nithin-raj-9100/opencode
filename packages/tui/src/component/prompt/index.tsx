@@ -32,6 +32,7 @@ import { parseSlashHead } from "../../prompt/parse"
 import { createStore, produce, unwrap } from "solid-js/store"
 import { emptyPrompt, usePromptHistory, type PromptInfo, type PromptPartRef } from "../../prompt/history"
 import { registerComposer, saveDraft, takeDraft } from "./draft-stash"
+import { mergePrompts } from "../../prompt/merge"
 import { Skill } from "@opencode/schema/skill"
 import { computePromptTraits } from "../../prompt/traits"
 import { expandPastedTextPlaceholders, expandTrackedPastedText } from "../../prompt/part"
@@ -79,6 +80,8 @@ export type PromptProps = {
   muted?: boolean
   onSubmit?: () => void
   onEmptySubmit?: () => boolean | Promise<boolean>
+  hasPendingPrompts?: () => boolean
+  takeBackPending?: () => Promise<PromptInfo[]>
   ref?: (ref: PromptRef | undefined) => void
   placeholders?: {
     normal?: string[]
@@ -1019,6 +1022,31 @@ export function Prompt(props: PromptProps) {
     }
   })
 
+  let takingBack = false
+  // Retract every prompt still waiting in the inbox and drop them back into the composer,
+  // oldest first, ahead of whatever the user had already typed. Cancellation has to settle
+  // before the composer is touched: a prompt the runner already promoted cannot be taken
+  // back, and clobbering the editor for one would lose the user's in-progress text.
+  function takeBackPending() {
+    if (takingBack) return
+    takingBack = true
+    void (async () => {
+      const taken = await props.takeBackPending!()
+      if (!taken.length) return
+      const current: PromptInfo = { ...structuredClone(unwrap(store.prompt)), text: input.plainText }
+      const merged = mergePrompts(current.text.trim() ? [...taken, current] : taken)
+      input.setText(merged.text)
+      setStore("prompt", merged)
+      setStore("mode", "normal")
+      restoreExtmarksFromPrompt(merged)
+      input.gotoBufferEnd()
+    })()
+      .catch((error) => toast.show({ message: errorMessage(error), variant: "error", duration: 5000 }))
+      .finally(() => {
+        takingBack = false
+      })
+  }
+
   Keymap.createLayer(() => {
     return {
       priority: 1,
@@ -1039,6 +1067,11 @@ export function Prompt(props: PromptProps) {
                 return
               }
               input.moveCursorUp()
+              return
+            }
+
+            if (props.hasPendingPrompts?.()) {
+              takeBackPending()
               return
             }
 
