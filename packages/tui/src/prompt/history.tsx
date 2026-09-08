@@ -1,8 +1,8 @@
 import path from "path"
-import { onMount } from "solid-js"
 import { createStore, produce, unwrap } from "solid-js/store"
 import type { PromptInput } from "@opencode/schema"
 import type { Types } from "effect"
+import { Hash } from "@opencode/util/hash"
 import { createSimpleContext } from "../context/helper"
 import { useTuiPaths } from "../context/runtime"
 import { appendText, readText, writeText } from "../util/persistence"
@@ -57,57 +57,95 @@ export function parsePromptInfo(value: unknown): PromptInfo | undefined {
   return input as PromptInfo
 }
 
+export function promptHistoryScope(directory: string | undefined): string {
+  return directory ?? ""
+}
+
 export const { use: usePromptHistory, provider: PromptHistoryProvider } = createSimpleContext({
   name: "PromptHistory",
   init: () => {
     const paths = useTuiPaths()
-    const historyPath = path.join(paths.state, "prompt-history.jsonl")
-    onMount(async () => {
-      const lines = parsePromptHistory(await readText(historyPath).catch(() => ""))
-      setStore("history", lines)
+    // Pre-scoping history lived in one global file; it seeds a directory the first
+    // time that directory is used, so upgrading does not empty the composer's recall.
+    const legacyPath = path.join(paths.state, "prompt-history.jsonl")
+    const scopePath = (scope: string) =>
+      path.join(paths.state, "prompt-history", `${scope ? Hash.fast(scope) : "global"}.jsonl`)
 
-      // Rewrite valid retained entries to self-heal corruption and enforce the limit.
-      if (lines.length > 0)
-        writeText(historyPath, lines.map((line) => JSON.stringify(line)).join("\n") + "\n").catch(() => {})
-    })
+    const [store, setStore] = createStore({ history: {} as Record<string, PromptInfo[]> })
+    const indices = new Map<string, number>()
+    const loading = new Map<string, Promise<void>>()
 
-    const [store, setStore] = createStore({ index: 0, history: [] as PromptInfo[] })
+    function entries(scope: string) {
+      return store.history[scope] ?? []
+    }
+
+    function persist(scope: string, lines: PromptInfo[]) {
+      return writeText(scopePath(scope), lines.map((line) => JSON.stringify(line)).join("\n") + "\n").catch(() => {})
+    }
+
+    // The provider is an app singleton, so scopes are loaded lazily on first use
+    // rather than at mount. Consumers call ensure() when their directory changes so
+    // the read has settled before the first arrow press.
+    function ensure(scope: string) {
+      const inflight = loading.get(scope)
+      if (inflight) return inflight
+      const task = (async () => {
+        const scoped = parsePromptHistory(await readText(scopePath(scope)).catch(() => ""))
+        if (scoped.length > 0) {
+          setStore("history", scope, scoped)
+          // Rewrite valid retained entries to self-heal corruption and enforce the limit.
+          await persist(scope, scoped)
+          return
+        }
+        const seed = parsePromptHistory(await readText(legacyPath).catch(() => ""))
+        setStore("history", scope, seed)
+        if (seed.length > 0) await persist(scope, seed)
+      })()
+      loading.set(scope, task)
+      return task
+    }
 
     return {
-      move(direction: 1 | -1, input: string) {
-        if (!store.history.length) return undefined
-        const current = store.history.at(store.index)
+      ensure,
+      move(scope: string, direction: 1 | -1, input: string) {
+        void ensure(scope)
+        const items = entries(scope)
+        if (!items.length) return undefined
+        const index = indices.get(scope) ?? 0
+        const current = items.at(index)
         if (!current) return undefined
         if (current.text !== input && input.length) return
-        const next = store.index + direction
-        if (Math.abs(next) > store.history.length || next > 0) return
-        setStore("index", next)
+        const next = index + direction
+        if (Math.abs(next) > items.length || next > 0) return
+        indices.set(scope, next)
         if (next === 0) return emptyPrompt()
-        return store.history.at(next)
+        return items.at(next)
       },
-      append(item: PromptInfo) {
+      append(scope: string, item: PromptInfo) {
+        void ensure(scope)
         const entry = structuredClone(unwrap(item))
-        if (isDuplicateEntry(store.history.at(-1), entry)) {
-          setStore("index", 0)
+        if (isDuplicateEntry(entries(scope).at(-1), entry)) {
+          indices.set(scope, 0)
           return
         }
         let trimmed = false
         setStore(
           produce((draft) => {
-            draft.history.push(entry)
-            if (draft.history.length > MAX_HISTORY_ENTRIES) {
-              draft.history = draft.history.slice(-MAX_HISTORY_ENTRIES)
+            const list = (draft.history[scope] ??= [])
+            list.push(entry)
+            if (list.length > MAX_HISTORY_ENTRIES) {
+              draft.history[scope] = list.slice(-MAX_HISTORY_ENTRIES)
               trimmed = true
             }
-            draft.index = 0
           }),
         )
+        indices.set(scope, 0)
 
         if (trimmed) {
-          writeText(historyPath, store.history.map((line) => JSON.stringify(line)).join("\n") + "\n").catch(() => {})
+          void persist(scope, entries(scope))
           return
         }
-        appendText(historyPath, JSON.stringify(entry) + "\n").catch(() => {})
+        appendText(scopePath(scope), JSON.stringify(entry) + "\n").catch(() => {})
       },
     }
   },
