@@ -119,6 +119,8 @@ export type SessionStructuredError = {
   retryAfterMs?: number
 }
 
+export type SessionGoalStatus = "active" | "paused" | "blocked" | "usage_limited" | "budget_limited" | "complete"
+
 export type SessionGenerateResponse = { data: { text: string } }
 
 export type SessionInterruptResponse = { interrupted: boolean }
@@ -587,6 +589,17 @@ export type SessionMessageIdle = {
   error?: SessionStructuredError
 }
 
+export type SessionGoalInfo = {
+  sessionID: SessionID
+  goalID: string
+  objective: string
+  status: SessionGoalStatus
+  tokenBudget?: number
+  tokensUsed: number
+  timeUsedSeconds: number
+  time: { created: number; updated: number }
+}
+
 export type FormNumberField = {
   key: string
   title?: string
@@ -809,6 +822,8 @@ export type PermissionSavedInfo = {
   time: { created: number; updated: number }
 }
 
+export type PermissionReview = { decision: PermissionReviewDecision; reason: string }
+
 export type Pty = {
   id: PtyID
   title: string
@@ -819,8 +834,6 @@ export type Pty = {
   pid: number
   exitCode?: number
 }
-
-export type PermissionReview = { decision: PermissionReviewDecision; reason: string }
 
 export type PersistentPtyInfo = {
   id: PtyID
@@ -1303,6 +1316,26 @@ export type SessionExecutionInterrupted = {
   durable: { aggregateID: string; seq: EventSeq; version: 1 }
   location?: LocationRef
   data: { sessionID: SessionID; reason: "user" | "shutdown" | "superseded" | "inactivity" }
+}
+
+export type SessionGoalUpdated = {
+  id: EventID
+  created: number
+  metadata?: { [x: string]: any }
+  type: "session.goal.updated"
+  durable: { aggregateID: string; seq: EventSeq; version: 1 }
+  location?: LocationRef
+  data: { sessionID: SessionID; goal: SessionGoalInfo }
+}
+
+export type SessionGoalCleared = {
+  id: EventID
+  created: number
+  metadata?: { [x: string]: any }
+  type: "session.goal.cleared"
+  durable: { aggregateID: string; seq: EventSeq; version: 1 }
+  location?: LocationRef
+  data: { sessionID: SessionID }
 }
 
 export type SessionInstructionsUpdated = {
@@ -2788,6 +2821,8 @@ export type SessionEventDurable =
   | SessionExecutionSucceeded
   | SessionExecutionFailed
   | SessionExecutionInterrupted
+  | SessionGoalUpdated
+  | SessionGoalCleared
   | SessionInstructionsUpdated
   | SessionSynthetic
   | SessionSkillActivated
@@ -2846,6 +2881,8 @@ export type V2Event =
   | SessionExecutionSucceeded
   | SessionExecutionFailed
   | SessionExecutionInterrupted
+  | SessionGoalUpdated
+  | SessionGoalCleared
   | SessionInstructionsUpdated
   | SessionSynthetic
   | SessionSkillActivated
@@ -3494,6 +3531,23 @@ export type SessionInboxUpdateInput = {
 }
 
 export type SessionInboxUpdateOutput = void
+
+export type SessionGoalGetInput = { readonly sessionID: string }
+
+export type SessionGoalGetOutput = { data: SessionGoalInfo | null }["data"]
+
+export type SessionGoalSetInput = {
+  readonly sessionID: string
+  readonly objective?: string | undefined
+  readonly status?: ("active" | "paused" | "blocked" | "usage_limited" | "budget_limited" | "complete") | undefined
+  readonly tokenBudget?: number | null | undefined
+}
+
+export type SessionGoalSetOutput = { data: SessionGoalInfo }["data"]
+
+export type SessionGoalClearInput = { readonly sessionID: string }
+
+export type SessionGoalClearOutput = { data: { cleared: boolean } }["data"]
 
 export type SessionGenerateInput = { readonly sessionID: string; readonly prompt: string }
 
@@ -4214,34 +4268,26 @@ export type PermissionSavedRemoveInput = { readonly id: string }
 export type PermissionSavedRemoveOutput = void
 
 export type PermissionAutoDefaultsInput = {
-  readonly location?: {
-    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
-  }["location"]
+  readonly location?: { readonly directory?: string | undefined } | undefined
 }
 
 export type PermissionAutoDefaultsOutput = {
-  location: { directory: string; workspaceID?: string; project: { id: string; directory: string; canonical: string } }
+  location: LocationPublicRef
   data: { allow: Array<string>; soft_deny: Array<string>; hard_deny: Array<string>; environment: string }
 }
 
-export type PermissionAutoConfigInput = {
-  readonly location?: {
-    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
-  }["location"]
-}
+export type PermissionAutoConfigInput = { readonly location?: { readonly directory?: string | undefined } | undefined }
 
 export type PermissionAutoConfigOutput = {
-  location: { directory: string; workspaceID?: string; project: { id: string; directory: string; canonical: string } }
+  location: LocationPublicRef
   data: { allow: Array<string>; soft_deny: Array<string>; hard_deny: Array<string>; environment: string }
 }
 
 export type PermissionAutoInput = {
-  readonly sessionID: { readonly sessionID: string }["sessionID"]
-  readonly location?: {
-    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
-  }["location"]
-  readonly enabled: { readonly enabled: boolean; readonly source?: "mount" | "sync" | "cleanup" | undefined }["enabled"]
-  readonly source?: { readonly enabled: boolean; readonly source?: "mount" | "sync" | "cleanup" | undefined }["source"]
+  readonly sessionID: string
+  readonly location?: { readonly directory?: string | undefined } | undefined
+  readonly enabled: boolean
+  readonly source?: "mount" | "sync" | "cleanup" | undefined
 }
 
 export type PermissionAutoOutput = void
@@ -4267,20 +4313,17 @@ export type PermissionGetInput = { readonly sessionID: string; readonly requestI
 
 export type PermissionGetOutput = { data: PermissionRequest }["data"]
 
-export type PermissionReviewInput = {
-  readonly sessionID: { readonly sessionID: string; readonly requestID: string }["sessionID"]
-  readonly requestID: { readonly sessionID: string; readonly requestID: string }["requestID"]
-}
+export type PermissionReviewInput = { readonly sessionID: string; readonly requestID: string }
 
 export type PermissionReviewOutput = { data: PermissionReview }["data"]
 
-export type PermissionDenialsInput = { readonly sessionID: { readonly sessionID: string }["sessionID"] }
+export type PermissionDenialsInput = { readonly sessionID: string }
 
 export type PermissionDenialsOutput = {
   data: Array<{ request: PermissionRequest; review: PermissionReview; time: number | "Infinity" | "-Infinity" | "NaN" }>
 }["data"]
 
-export type PermissionAutoStatusInput = { readonly sessionID: { readonly sessionID: string }["sessionID"] }
+export type PermissionAutoStatusInput = { readonly sessionID: string }
 
 export type PermissionAutoStatusOutput = {
   data: { enabled: boolean; consecutive: number; total: number; broken: boolean }
@@ -4389,6 +4432,8 @@ export type EventSubscribeInput = {
         | "session.execution.succeeded"
         | "session.execution.failed"
         | "session.execution.interrupted"
+        | "session.goal.updated"
+        | "session.goal.cleared"
         | "session.instructions.updated"
         | "session.synthetic"
         | "session.skill.activated"
@@ -4423,6 +4468,7 @@ export type EventSubscribeInput = {
         | "reference.updated"
         | "permission.asked"
         | "permission.replied"
+        | "permission.auto_denied"
         | "plugin.updated"
         | "project.updated"
         | "worktree.updated"

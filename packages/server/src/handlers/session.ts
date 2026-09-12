@@ -5,6 +5,7 @@ import { SessionTitle } from "@opencode/core/session/title"
 import { SessionTransfer } from "@opencode/core/session/transfer"
 import { InstructionEntry } from "@opencode/core/session/instruction-entry"
 import { Form } from "@opencode/core/form"
+import { SessionGoal } from "@opencode/core/session/goal"
 import { DateTime, Effect, Stream } from "effect"
 import { HttpServerResponse } from "effect/http"
 import { HttpApiBuilder, HttpApiSchema } from "effect/http-api"
@@ -48,6 +49,7 @@ export const SessionHandler = HttpApiBuilder.group(Api, "server.session", (handl
       if (info.sessionID !== sessionID) return yield* missingForm(formID)
       return { form, info }
     })
+    const goals = yield* SessionGoal.Service
     const busySession = (error: Session.BusyError) =>
       new SessionBusyError({
         sessionID: error.sessionID,
@@ -578,6 +580,40 @@ export const SessionHandler = HttpApiBuilder.group(Api, "server.session", (handl
           yield* requireSession(ctx.params.sessionID)
           yield* instructions.remove({ sessionID: ctx.params.sessionID, key: ctx.params.key })
           return HttpApiSchema.NoContent.make()
+        }),
+      )
+      .handle(
+        "session.goal.get",
+        Effect.fn(function* (ctx) {
+          yield* session.get(ctx.params.sessionID).pipe(Effect.catchTag("Session.NotFoundError", missingSession))
+          return { data: (yield* goals.get(ctx.params.sessionID)) ?? null }
+        }),
+      )
+      .handle(
+        "session.goal.set",
+        Effect.fn(function* (ctx) {
+          const goal = yield* goals
+            .set({
+              sessionID: ctx.params.sessionID,
+              objective: ctx.payload.objective,
+              status: ctx.payload.status,
+              tokenBudget: ctx.payload.tokenBudget,
+            })
+            .pipe(
+              Effect.catchTag("Session.NotFoundError", missingSession),
+              Effect.catchTag("SessionGoal.InvalidError", (error) => new InvalidRequestError({ message: error.message })),
+              Effect.catchTag("SessionGoal.MissingError", (error) => new InvalidRequestError({ message: error.message })),
+            )
+          return { data: goal }
+        }),
+      )
+      .handle(
+        "session.goal.clear",
+        Effect.fn(function* (ctx) {
+          const cleared = yield* goals
+            .clear(ctx.params.sessionID)
+            .pipe(Effect.catchTag("Session.NotFoundError", missingSession))
+          return { data: { cleared } }
         }),
       )
       .handle(

@@ -69,6 +69,12 @@ import type {
   SessionInboxCancelOutput,
   SessionInboxUpdateInput,
   SessionInboxUpdateOutput,
+  SessionGoalGetInput,
+  SessionGoalGetOutput,
+  SessionGoalSetInput,
+  SessionGoalSetOutput,
+  SessionGoalClearInput,
+  SessionGoalClearOutput,
   SessionGenerateInput,
   SessionGenerateOutput,
   SessionInterruptInput,
@@ -672,6 +678,33 @@ const EndpointSessionInboxUpdate = (raw: RawClient["server.session"]) => (input:
     }).pipe(Effect.mapError(mapClientError)),
   )
 
+const EndpointSessionGoalGet = (raw: RawClient["server.session"]) => (input: SessionGoalGetInput) =>
+  preserveEffect<SessionGoalGetOutput>()(
+    raw["session.goal.get"]({ params: { sessionID: input["sessionID"] } }).pipe(
+      Effect.mapError(mapClientError),
+      Effect.map((value) => value.data),
+    ),
+  )
+
+const EndpointSessionGoalSet = (raw: RawClient["server.session"]) => (input: SessionGoalSetInput) =>
+  preserveEffect<SessionGoalSetOutput>()(
+    raw["session.goal.set"]({
+      params: { sessionID: input["sessionID"] },
+      payload: { objective: input["objective"], status: input["status"], tokenBudget: input["tokenBudget"] },
+    }).pipe(
+      Effect.mapError(mapClientError),
+      Effect.map((value) => value.data),
+    ),
+  )
+
+const EndpointSessionGoalClear = (raw: RawClient["server.session"]) => (input: SessionGoalClearInput) =>
+  preserveEffect<SessionGoalClearOutput>()(
+    raw["session.goal.clear"]({ params: { sessionID: input["sessionID"] } }).pipe(
+      Effect.mapError(mapClientError),
+      Effect.map((value) => value.data),
+    ),
+  )
+
 const EndpointSessionGenerate = (raw: RawClient["server.session"]) => (input: SessionGenerateInput) =>
   preserveEffect<SessionGenerateOutput>()(
     raw["session.generate"]({ params: { sessionID: input["sessionID"] }, payload: { prompt: input["prompt"] } }).pipe(
@@ -786,6 +819,7 @@ const adaptGroupSession = (raw: RawClient["server.session"]) => ({
     cancel: EndpointSessionInboxCancel(raw),
     update: EndpointSessionInboxUpdate(raw),
   },
+  goal: { get: EndpointSessionGoalGet(raw), set: EndpointSessionGoalSet(raw), clear: EndpointSessionGoalClear(raw) },
   generate: EndpointSessionGenerate(raw),
   interrupt: EndpointSessionInterrupt(raw),
   background: EndpointSessionBackground(raw),

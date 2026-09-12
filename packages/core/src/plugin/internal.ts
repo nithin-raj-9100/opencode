@@ -62,6 +62,7 @@ import { WebSearch } from "../websearch.js"
 import { Ripgrep } from "../ripgrep.js"
 import { Schedule } from "../schedule.js"
 import { Session } from "../session.js"
+import { SessionGoal } from "../session/goal.js"
 import { SessionCompaction } from "../session/compaction.js"
 import { SessionInstructions } from "../session/instructions.js"
 import { SubagentJob } from "../session/subagent-job.js"
@@ -79,6 +80,7 @@ import { GrepTool } from "../tool/plugin/grep.js"
 import { ImageGenerateTool } from "../tool/plugin/image-generate.js"
 import { McpResourceTools } from "../tool/plugin/mcp-resource.js"
 import { OpenCodeTools } from "../tool/plugin/opencode.js"
+import { GoalTools } from "../tool/plugin/goal.js"
 import { QuestionTool } from "../tool/plugin/question.js"
 import { ReadToolFileSystem } from "../tool/read-filesystem.js"
 import { ReadTool } from "../tool/plugin/read.js"
@@ -154,6 +156,7 @@ const services = [
   Ripgrep.Service,
   Schedule.Service,
   Session.Service,
+  SessionGoal.Service,
   SessionCompaction.Service,
   SessionInstructions.Service,
   SubagentJob.Service,
@@ -212,6 +215,7 @@ export const requirements = LayerNode.group([
   Ripgrep.node,
   Schedule.node,
   Session.node,
+  SessionGoal.node,
   SessionCompaction.node,
   SessionInstructions.node,
   SubagentJob.node,
@@ -258,6 +262,7 @@ const pre = [
   ImageGenerateTool.Plugin,
   OpenCodeTools.Plugin,
   McpResourceTools.Plugin,
+  GoalTools.Plugin,
   QuestionTool.Plugin,
   ReadTool.Plugin,
   ArtifactTools.Plugin,

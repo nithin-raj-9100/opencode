@@ -13,7 +13,7 @@ import { SessionMessageUpdater } from "./message-updater.js"
 import { SessionInbox } from "./inbox.js"
 import { InstructionState } from "./instruction-state.js"
 import { SessionBlob } from "./blob.js"
-import { SessionInboxTable, SessionMessageTable, SessionPartTable, SessionTable, type SessionPartData } from "./sql.js"
+import { SessionGoalTable, SessionInboxTable, SessionMessageTable, SessionPartTable, SessionTable, type SessionPartData } from "./sql.js"
 import { SessionStored } from "./stored.js"
 import { InstructionEntry } from "./instruction-entry.js"
 import { Slug } from "../util/slug.js"
@@ -648,6 +648,40 @@ const layer = Layer.effectDiscard(
         yield* SessionBlob.releaseSession(db, event.data.sessionID)
         yield* db.delete(SessionTable).where(eq(SessionTable.id, event.data.sessionID)).run().pipe(Effect.orDie)
       }),
+    )
+    yield* bus.project(SessionEvent.GoalUpdated, (event) => {
+      const goal = event.data.goal
+      return db
+        .insert(SessionGoalTable)
+        .values({
+          session_id: goal.sessionID,
+          goal_id: goal.goalID,
+          objective: goal.objective,
+          status: goal.status,
+          token_budget: goal.tokenBudget ?? null,
+          tokens_used: goal.tokensUsed,
+          time_used_seconds: goal.timeUsedSeconds,
+          time_created: goal.time.created,
+          time_updated: goal.time.updated,
+        })
+        .onConflictDoUpdate({
+          target: SessionGoalTable.session_id,
+          set: {
+            goal_id: goal.goalID,
+            objective: goal.objective,
+            status: goal.status,
+            token_budget: goal.tokenBudget ?? null,
+            tokens_used: goal.tokensUsed,
+            time_used_seconds: goal.timeUsedSeconds,
+            time_created: goal.time.created,
+            time_updated: goal.time.updated,
+          },
+        })
+        .run()
+        .pipe(Effect.orDie)
+    })
+    yield* bus.project(SessionEvent.GoalCleared, (event) =>
+      db.delete(SessionGoalTable).where(eq(SessionGoalTable.session_id, event.data.sessionID)).run().pipe(Effect.orDie),
     )
     yield* bus.project(SessionEvent.AgentSelected, (event) =>
       Effect.gen(function* () {

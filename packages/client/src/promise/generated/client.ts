@@ -63,6 +63,12 @@ import type {
   SessionInboxCancelOutput,
   SessionInboxUpdateInput,
   SessionInboxUpdateOutput,
+  SessionGoalGetInput,
+  SessionGoalGetOutput,
+  SessionGoalSetInput,
+  SessionGoalSetOutput,
+  SessionGoalClearInput,
+  SessionGoalClearOutput,
   SessionGenerateInput,
   SessionGenerateOutput,
   SessionInterruptInput,
@@ -928,6 +934,42 @@ export function make(options: ClientOptions) {
             },
             requestOptions,
           ),
+      },
+      goal: {
+        get: (input: SessionGoalGetInput, requestOptions?: RequestOptions) =>
+          request<{ readonly data: SessionGoalGetOutput }>(
+            {
+              method: "GET",
+              path: `/api/session/${encodeURIComponent(input.sessionID)}/goal`,
+              successStatus: 200,
+              declaredStatuses: [400, 401, 404],
+              empty: false,
+            },
+            requestOptions,
+          ).then((value) => value.data),
+        set: (input: SessionGoalSetInput, requestOptions?: RequestOptions) =>
+          request<{ readonly data: SessionGoalSetOutput }>(
+            {
+              method: "PUT",
+              path: `/api/session/${encodeURIComponent(input.sessionID)}/goal`,
+              body: { objective: input["objective"], status: input["status"], tokenBudget: input["tokenBudget"] },
+              successStatus: 200,
+              declaredStatuses: [400, 401, 404, 409],
+              empty: false,
+            },
+            requestOptions,
+          ).then((value) => value.data),
+        clear: (input: SessionGoalClearInput, requestOptions?: RequestOptions) =>
+          request<{ readonly data: SessionGoalClearOutput }>(
+            {
+              method: "DELETE",
+              path: `/api/session/${encodeURIComponent(input.sessionID)}/goal`,
+              successStatus: 200,
+              declaredStatuses: [400, 401, 404],
+              empty: false,
+            },
+            requestOptions,
+          ).then((value) => value.data),
       },
       generate: (input: SessionGenerateInput, requestOptions?: RequestOptions) =>
         request<{ readonly data: SessionGenerateOutput }>(
@@ -2139,7 +2181,7 @@ export function make(options: ClientOptions) {
             path: `/api/permission/auto/defaults`,
             query: { location: input?.["location"] },
             successStatus: 200,
-            declaredStatuses: [400, 401],
+            declaredStatuses: [400, 401, 404],
             empty: false,
           },
           requestOptions,
@@ -2151,7 +2193,7 @@ export function make(options: ClientOptions) {
             path: `/api/permission/auto/config`,
             query: { location: input?.["location"] },
             successStatus: 200,
-            declaredStatuses: [400, 401],
+            declaredStatuses: [400, 401, 404],
             empty: false,
           },
           requestOptions,
@@ -2164,7 +2206,7 @@ export function make(options: ClientOptions) {
             query: { location: input["location"] },
             body: { enabled: input["enabled"], source: input["source"] },
             successStatus: 204,
-            declaredStatuses: [400, 401],
+            declaredStatuses: [400, 401, 404],
             empty: true,
           },
           requestOptions,
