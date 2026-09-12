@@ -60,6 +60,7 @@ import { Reference } from "../reference.js"
 import { WebSearch } from "../websearch.js"
 import { Ripgrep } from "../ripgrep.js"
 import { Session } from "../session.js"
+import { SessionGoal } from "../session/goal.js"
 import { SessionCompaction } from "../session/compaction.js"
 import { SessionInstructions } from "../session/instructions.js"
 import { Shell } from "../shell.js"
@@ -74,6 +75,7 @@ import { GlobTool } from "../tool/plugin/glob.js"
 import { GrepTool } from "../tool/plugin/grep.js"
 import { McpResourceTools } from "../tool/plugin/mcp-resource.js"
 import { OpenCodeTools } from "../tool/plugin/opencode.js"
+import { GoalTools } from "../tool/plugin/goal.js"
 import { QuestionTool } from "../tool/plugin/question.js"
 import { ReadToolFileSystem } from "../tool/read-filesystem.js"
 import { ReadTool } from "../tool/plugin/read.js"
@@ -143,6 +145,7 @@ const services = [
   WebSearch.Service,
   Ripgrep.Service,
   Session.Service,
+  SessionGoal.Service,
   SessionCompaction.Service,
   SessionInstructions.Service,
   Shell.Service,
@@ -197,6 +200,7 @@ export const requirements = LayerNode.group([
   WebSearch.node,
   Ripgrep.node,
   Session.node,
+  SessionGoal.node,
   SessionCompaction.node,
   SessionInstructions.node,
   Shell.node,
@@ -241,6 +245,7 @@ const pre = [
   GrepTool.Plugin,
   OpenCodeTools.Plugin,
   McpResourceTools.Plugin,
+  GoalTools.Plugin,
   QuestionTool.Plugin,
   ReadTool.Plugin,
   ShellTool.Plugin,
