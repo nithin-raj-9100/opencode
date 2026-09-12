@@ -521,6 +521,38 @@ describe("Permission", () => {
     }),
   )
 
+  it.effect("uses last matching rule so explore-style deny-then-allow still reads in auto mode", () =>
+    Effect.gen(function* () {
+      yield* setup([
+        { action: "*", resource: "*", effect: "deny" },
+        { action: "grep", resource: "*", effect: "allow" },
+        { action: "glob", resource: "*", effect: "allow" },
+        { action: "webfetch", resource: "*", effect: "allow" },
+        { action: "websearch", resource: "*", effect: "allow" },
+        { action: "read", resource: "*", effect: "allow" },
+        { action: "subagent", resource: "*", effect: "deny" },
+      ])
+      const autostate = yield* PermissionAutoState.Service
+      yield* autostate.activate(Session.ID.make("ses_test"))
+      const service = yield* Permission.Service
+      expect(yield* service.ask(assertion({ action: "read", resources: ["codex/src/lib.rs"] }))).toMatchObject({
+        effect: "allow",
+      })
+      expect(yield* service.ask(assertion({ action: "glob", resources: ["**/*.rs"] }))).toMatchObject({
+        effect: "allow",
+      })
+      expect(yield* service.ask(assertion({ action: "grep", resources: ["goal"] }))).toMatchObject({
+        effect: "allow",
+      })
+      expect(yield* service.ask(assertion({ action: "webfetch", resources: ["https://example.com"] }))).toMatchObject({
+        effect: "allow",
+      })
+      expect(yield* service.ask(assertion({ action: "shell", resources: ["ls -la"] }))).toMatchObject({
+        effect: "deny",
+      })
+    }),
+  )
+
   it.effect("uses saved bash approvals while preserving configured deny precedence", () =>
     Effect.gen(function* () {
       yield* setup()
