@@ -1,5 +1,6 @@
 import { Plugin } from "@opencode/plugin/tui"
 import { createMemo, createSignal, Match, Show, Switch } from "solid-js"
+import { footerFeedback, footerLabel } from "../../session/goal"
 import { contextUsage, formatContextUsage } from "../../util/session"
 import { useTerminalDimensions } from "@opentui/solid"
 import { TextAttributes } from "@opentui/core"
@@ -29,6 +30,20 @@ export function PromptFooter(props: {
   const scripts = createMemo(() => label(counts().scripts, "script"))
   const subagents = createMemo(() => label(counts().subagents, "subagent"))
   const shells = createMemo(() => label(counts().shells, "shell"))
+  const goal = createMemo(() => {
+    if (!props.sessionID) return
+    return props.context.data.session.goal.get(props.sessionID)
+  })
+  const goalText = createMemo(() => {
+    const current = goal()
+    if (!current) return
+    return footerLabel(current)
+  })
+  const goalColor = createMemo(() => {
+    const current = goal()
+    if (!current) return props.context.theme.text.muted
+    return props.context.theme.text.feedback[footerFeedback(current.status)].base
+  })
   const status = createMemo(() => {
     if (!props.sessionID) return []
     const session = props.context.data.session.get(props.sessionID)
@@ -45,7 +60,7 @@ export function PromptFooter(props: {
     ].filter((item): item is string => Boolean(item))
   })
   const live = createMemo(() => [scripts(), subagents(), shells()].filter((item): item is string => Boolean(item)))
-  const goal = createGoal(props.context, () => props.sessionID)
+  const pluginGoal = createGoal(props.context, () => props.sessionID)
   // Prompt hints read as disabled while the session does not own input, e.g. while a side panel is focused.
   const interactive = useInteractivity()
   const shortcut = (id: string) => props.context.keymap.shortcuts(id)[0]
@@ -63,7 +78,7 @@ export function PromptFooter(props: {
     <Switch>
       <Match when={props.mode === "normal"}>
         <Switch>
-          <Match when={goal() || live().length > 0 || status().length > 0}>
+          <Match when={pluginGoal() || live().length > 0 || status().length > 0 || goalText()}>
             <box flexDirection="row" flexShrink={props.showDetails && layout().usage ? 0 : 1} minWidth={0}>
               <Show when={live().length > 0}>
                 <box
@@ -83,17 +98,25 @@ export function PromptFooter(props: {
                   </text>
                 </box>
               </Show>
-              <Show when={props.sessionID && goal()}>
+              <Show when={props.sessionID && pluginGoal()}>
                 <Show when={live().length > 0}>
                   <text fg={props.context.theme.text.muted} wrapMode="none" flexShrink={0}>
                     {" · "}
                   </text>
                 </Show>
-                <GoalStatus context={props.context} sessionID={props.sessionID ?? ""} goal={goal} />
+                <GoalStatus context={props.context} sessionID={props.sessionID ?? ""} goal={pluginGoal} />
+              </Show>
+              <Show when={goalText()}>
+                {(label) => (
+                  <text fg={goalColor()} wrapMode="none" flexShrink={0}>
+                    <Show when={live().length > 0 || (props.sessionID && pluginGoal())}> · </Show>
+                    {label()}
+                  </text>
+                )}
               </Show>
               <Show when={props.showDetails && layout().usage && status().length > 0}>
                 <text fg={props.context.theme.text.muted} wrapMode="none" flexShrink={0}>
-                  <Show when={live().length > 0 || goal()}> · </Show>
+                  <Show when={live().length > 0 || (props.sessionID && pluginGoal()) || goalText()}> · </Show>
                   {status().join(" · ")}
                 </text>
               </Show>

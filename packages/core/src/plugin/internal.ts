@@ -69,6 +69,7 @@ import { WebSearch } from "../websearch.js"
 import { Ripgrep } from "../ripgrep.js"
 import { Automation } from "../automation.js"
 import { Session } from "../session.js"
+import { SessionGoal } from "../session/goal.js"
 import { SessionCompaction } from "../session/compaction.js"
 import { SessionInstructions } from "../session/instructions.js"
 import { SessionSearch } from "../session/search.js"
@@ -90,6 +91,7 @@ import { VideoGenerateTool } from "../tool/plugin/video-generate.js"
 import { McpEventTools } from "../tool/plugin/mcp-events.js"
 import { McpResourceTools } from "../tool/plugin/mcp-resource.js"
 import { OpenCodeTools } from "../tool/plugin/opencode.js"
+import { GoalTools } from "../tool/plugin/goal.js"
 import { QuestionTool } from "../tool/plugin/question.js"
 import { ReadTool } from "../tool/plugin/read.js"
 import { ArtifactTools } from "../tool/plugin/artifact.js"
@@ -172,6 +174,7 @@ const services = [
   Ripgrep.Service,
   Automation.Service,
   Session.Service,
+  SessionGoal.Service,
   SessionCompaction.Service,
   SessionInstructions.Service,
   SessionSearch.Service,
@@ -238,6 +241,7 @@ export const requirements = LayerNode.group([
   Ripgrep.node,
   Automation.node,
   Session.node,
+  SessionGoal.node,
   SessionCompaction.node,
   SessionInstructions.node,
   SessionSearch.node,
@@ -290,6 +294,7 @@ const pre = [
   OpenCodeTools.Plugin,
   McpEventTools.Plugin,
   McpResourceTools.Plugin,
+  GoalTools.Plugin,
   QuestionTool.Plugin,
   ReadTool.Plugin,
   ArtifactTools.Plugin,

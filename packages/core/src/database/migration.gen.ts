@@ -64,6 +64,8 @@ import m61 from "./migration/20261116213417_automation_active_index.js"
 import m62 from "./migration/20261119211416_machine.js"
 import m63 from "./migration/20261120004954_machine-key.js"
 
+import goal from "./migration/20260912115926_session-goal.js"
+
 export const migrations = [
   m00,
   m01,
@@ -112,6 +114,7 @@ export const migrations = [
   m44,
   m45,
   m46,
+  goal,
   m47,
   m48,
   m49,
