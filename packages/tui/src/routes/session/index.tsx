@@ -1188,6 +1188,12 @@ export function Session(props: {
           dialog,
           toast,
           prepare: prepareSessionComposer(),
+          prompt: (text) =>
+            data.session.prompt({
+              sessionID: route.sessionID,
+              text,
+              resume: false,
+            }),
         })
       },
     },
