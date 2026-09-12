@@ -25,6 +25,7 @@ import { SessionInbox } from "./session-inbox.js"
 import { Project } from "./project.js"
 import { SessionFork } from "./session-fork.js"
 import { Permission } from "./permission.js"
+import { SessionGoal } from "./session-goal.js"
 
 export const Source = Schema.Struct({
   start: NonNegativeInt,
@@ -257,6 +258,23 @@ export namespace Execution {
   })
   export type Interrupted = typeof Interrupted.Type
 }
+
+export const GoalUpdated = Event.durable({
+  type: "session.goal.updated",
+  ...options,
+  schema: {
+    ...Base,
+    goal: SessionGoal.Info,
+  },
+})
+export type GoalUpdated = typeof GoalUpdated.Type
+
+export const GoalCleared = Event.durable({
+  type: "session.goal.cleared",
+  ...options,
+  schema: Base,
+})
+export type GoalCleared = typeof GoalCleared.Type
 
 export const InstructionsUpdated = Event.durable({
   type: "session.instructions.updated",
@@ -669,6 +687,8 @@ export const Definitions = Event.inventory(
   Execution.Succeeded,
   Execution.Failed,
   Execution.Interrupted,
+  GoalUpdated,
+  GoalCleared,
   InstructionsUpdated,
   Synthetic,
   Skill.Activated,

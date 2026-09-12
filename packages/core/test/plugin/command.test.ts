@@ -6,6 +6,7 @@ import { AppNodeBuilder } from "@opencode/core/effect/app-node-builder"
 import { Location } from "@opencode/core/location"
 import { Mcp } from "@opencode/core/mcp/index"
 import { CommandPlugin } from "@opencode/core/plugin/command"
+import { SessionGoal } from "@opencode/core/session/goal"
 import { AbsolutePath } from "@opencode/core/schema"
 import { Session } from "@opencode/schema/session"
 import { SessionInbox } from "@opencode/schema/session-inbox"
@@ -68,11 +69,29 @@ describe("CommandPlugin.Plugin", () => {
           Location.Service,
           Location.Service.of(location({ directory }, { projectDirectory: project })),
         ),
+        Effect.provideService(
+          SessionGoal.Service,
+          SessionGoal.Service.of({
+            get: () => Effect.succeed(undefined),
+            listActive: () => Effect.succeed([]),
+            set: () => Effect.die("unused SessionGoal.set"),
+            create: () => Effect.die("unused SessionGoal.create"),
+            clear: () => Effect.succeed(false),
+            pauseActive: () => Effect.succeed(undefined),
+            usageLimitActive: () => Effect.succeed(undefined),
+            blockActive: () => Effect.succeed(undefined),
+            account: () => Effect.succeed(undefined),
+          }),
+        ),
       )
 
       expect(yield* command.get("init")).toMatchObject({
         name: "init",
         description: "guided AGENTS.md setup",
+      })
+      expect(yield* command.get("goal")).toMatchObject({
+        name: "goal",
+        description: "set or view the goal for a long-running task",
       })
       expect(yield* command.get("review")).toMatchObject({
         name: "review",
