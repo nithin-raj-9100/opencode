@@ -4,6 +4,9 @@ import {
   footerLabel,
   formatElapsed,
   formatTokensCompact,
+  goalCommandText,
+  liveTimeUsedSeconds,
+  nextChargingStartedAt,
   parseGoalArgs,
   shouldConfirmReplace,
   statusLabel,
@@ -74,5 +77,85 @@ describe("goal display", () => {
         timeUsedSeconds: 120,
       }),
     ).toBe("Objective: Complete the task Time: 2m. Tokens: 63.9K/50K.")
+  })
+
+  test("adds live elapsed seconds while an unbudgeted goal is running", () => {
+    expect(goalCommandText("Fix the footer timer")).toBe("/goal Fix the footer timer")
+    expect(
+      liveTimeUsedSeconds({
+        status: "active",
+        timeUsedSeconds: 0,
+        running: true,
+        chargingStartedAt: 1_000,
+        now: 13_000,
+      }),
+    ).toBe(12)
+    expect(
+      liveTimeUsedSeconds({
+        status: "active",
+        timeUsedSeconds: 12,
+        running: false,
+        chargingStartedAt: undefined,
+        now: 20_000,
+      }),
+    ).toBe(12)
+    expect(
+      liveTimeUsedSeconds({
+        status: "active",
+        tokenBudget: 50_000,
+        timeUsedSeconds: 0,
+        running: true,
+        chargingStartedAt: 1_000,
+        now: 13_000,
+      }),
+    ).toBe(0)
+    expect(
+      footerLabel({
+        objective: "x",
+        status: "active",
+        tokensUsed: 0,
+        timeUsedSeconds: liveTimeUsedSeconds({
+          status: "active",
+          timeUsedSeconds: 0,
+          running: true,
+          chargingStartedAt: 1_000,
+          now: 13_000,
+        }),
+      }),
+    ).toBe("Pursuing goal (12s)")
+  })
+
+  test("keeps a charging window across token updates and resets after persisted time lands", () => {
+    const previous = { sessionID: "ses_1", timeUsedSeconds: 0, startedAt: 1_000 }
+    expect(
+      nextChargingStartedAt({
+        sessionID: "ses_1",
+        status: "active",
+        running: true,
+        timeUsedSeconds: 0,
+        previous,
+        now: 13_000,
+      }),
+    ).toBe(1_000)
+    expect(
+      nextChargingStartedAt({
+        sessionID: "ses_1",
+        status: "active",
+        running: true,
+        timeUsedSeconds: 12,
+        previous,
+        now: 13_000,
+      }),
+    ).toBe(13_000)
+    expect(
+      nextChargingStartedAt({
+        sessionID: "ses_1",
+        status: "active",
+        running: false,
+        timeUsedSeconds: 0,
+        previous,
+        now: 13_000,
+      }),
+    ).toBeUndefined()
   })
 })
