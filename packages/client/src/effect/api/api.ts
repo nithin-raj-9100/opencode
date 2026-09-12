@@ -20,6 +20,7 @@ import type { FileDiff } from "@opencode/schema/file-diff"
 import type { InstructionEntry } from "@opencode/schema/instruction-entry"
 import type { Schema } from "effect"
 import type { Event } from "@opencode/schema/event"
+import type { SessionGoal } from "@opencode/schema/session-goal"
 import type { EventLog } from "@opencode/schema/event-log"
 import type { Shell } from "@opencode/schema/shell"
 import type { Provider } from "@opencode/schema/provider"
@@ -394,6 +395,25 @@ export type SessionInstructionsEntryRemoveOperation<E = never> = (
   input: SessionInstructionsEntryRemoveInput,
 ) => Effect.Effect<SessionInstructionsEntryRemoveOutput, E>
 
+export type SessionGoalGetInput = { readonly sessionID: Session.ID }
+export type SessionGoalGetOutput = SessionGoal.Info | null
+export type SessionGoalGetOperation<E = never> = (input: SessionGoalGetInput) => Effect.Effect<SessionGoalGetOutput, E>
+
+export type SessionGoalSetInput = {
+  readonly sessionID: Session.ID
+  readonly objective?: string | undefined
+  readonly status?: SessionGoal.Status | undefined
+  readonly tokenBudget?: number | null | undefined
+}
+export type SessionGoalSetOutput = SessionGoal.Info
+export type SessionGoalSetOperation<E = never> = (input: SessionGoalSetInput) => Effect.Effect<SessionGoalSetOutput, E>
+
+export type SessionGoalClearInput = { readonly sessionID: Session.ID }
+export type SessionGoalClearOutput = { readonly cleared: boolean }
+export type SessionGoalClearOperation<E = never> = (
+  input: SessionGoalClearInput,
+) => Effect.Effect<SessionGoalClearOutput, E>
+
 export type SessionGenerateInput = { readonly sessionID: Session.ID; readonly prompt: string }
 export type SessionGenerateOutput = { readonly text: string }
 export type SessionGenerateOperation<E = never> = (
@@ -698,6 +718,34 @@ export type SessionLogOutput =
             readonly sessionID: Session.ID
             readonly reason: "user" | "shutdown" | "superseded" | "inactivity"
           }
+        }
+      | {
+          readonly id: Event.ID
+          readonly created: number
+          readonly metadata?: { readonly [x: string]: unknown } | undefined
+          readonly type: "session.goal.updated"
+          readonly durable: { readonly aggregateID: string; readonly seq: Event.Seq; readonly version: Event.Version }
+          readonly location?:
+            | {
+                readonly directory: AbsolutePath
+                readonly workspaceID?: (string & Brand.Brand<"Workspace.ID">) | undefined
+              }
+            | undefined
+          readonly data: { readonly sessionID: Session.ID; readonly goal: SessionGoal.Info }
+        }
+      | {
+          readonly id: Event.ID
+          readonly created: number
+          readonly metadata?: { readonly [x: string]: unknown } | undefined
+          readonly type: "session.goal.cleared"
+          readonly durable: { readonly aggregateID: string; readonly seq: Event.Seq; readonly version: Event.Version }
+          readonly location?:
+            | {
+                readonly directory: AbsolutePath
+                readonly workspaceID?: (string & Brand.Brand<"Workspace.ID">) | undefined
+              }
+            | undefined
+          readonly data: { readonly sessionID: Session.ID }
         }
       | {
           readonly id: Event.ID
@@ -1379,6 +1427,11 @@ export interface SessionApi<E = never> {
       readonly remove: SessionInstructionsEntryRemoveOperation<E>
     }
   }
+  readonly goal: {
+    readonly get: SessionGoalGetOperation<E>
+    readonly set: SessionGoalSetOperation<E>
+    readonly clear: SessionGoalClearOperation<E>
+  }
   readonly generate: SessionGenerateOperation<E>
   readonly log: SessionLogOperation<E>
   readonly interrupt: SessionInterruptOperation<E>
@@ -1752,10 +1805,10 @@ export type PermissionSavedRemoveOperation<E = never> = (
 ) => Effect.Effect<PermissionSavedRemoveOutput, E>
 
 export type PermissionAutoDefaultsInput = {
-  readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  readonly location?: { readonly directory?: string | undefined } | undefined
 }
 export type PermissionAutoDefaultsOutput = {
-  readonly location: Location.Info
+  readonly location: Location.PublicRef
   readonly data: {
     readonly allow: ReadonlyArray<string>
     readonly soft_deny: ReadonlyArray<string>
@@ -1767,11 +1820,9 @@ export type PermissionAutoDefaultsOperation<E = never> = (
   input?: PermissionAutoDefaultsInput,
 ) => Effect.Effect<PermissionAutoDefaultsOutput, E>
 
-export type PermissionAutoConfigInput = {
-  readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
-}
+export type PermissionAutoConfigInput = { readonly location?: { readonly directory?: string | undefined } | undefined }
 export type PermissionAutoConfigOutput = {
-  readonly location: Location.Info
+  readonly location: Location.PublicRef
   readonly data: {
     readonly allow: ReadonlyArray<string>
     readonly soft_deny: ReadonlyArray<string>
@@ -1785,7 +1836,7 @@ export type PermissionAutoConfigOperation<E = never> = (
 
 export type PermissionAutoInput = {
   readonly sessionID: Session.ID
-  readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  readonly location?: { readonly directory?: string | undefined } | undefined
   readonly enabled: boolean
   readonly source?: "mount" | "sync" | "cleanup" | undefined
 }

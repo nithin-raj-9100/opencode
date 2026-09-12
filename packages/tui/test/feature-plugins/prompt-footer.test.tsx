@@ -16,6 +16,12 @@ test("prompt footer separates simultaneous subagent, shell, and usage status", a
       text: {
         default: color,
         subdued,
+        feedback: {
+          info: { default: color },
+          warning: { default: subdued },
+          error: { default: subdued },
+          success: { default: color },
+        },
       },
     },
     keymap: {
@@ -30,6 +36,7 @@ test("prompt footer separates simultaneous subagent, shell, and usage status", a
         get: () => ({ id: "session", location: { directory: "/workspace" } }),
         cost: () => 1,
         message: { list: () => [] },
+        goal: { get: () => undefined },
       },
       shell: {
         list: () => [{ metadata: { sessionID: "session" } }],
@@ -59,6 +66,66 @@ test("prompt footer separates simultaneous subagent, shell, and usage status", a
 
     await app.mockMouse.click(2, 0)
     expect(dispatched).toEqual(["session.child.first"])
+  } finally {
+    app.renderer.destroy()
+  }
+})
+
+test("prompt footer shows an active goal next to live status", async () => {
+  const color = RGBA.fromInts(200, 200, 200)
+  const subdued = RGBA.fromInts(100, 100, 100)
+  const context = {
+    location: { directory: "/workspace" },
+    theme: {
+      text: {
+        default: color,
+        subdued,
+        feedback: {
+          info: { default: color },
+          warning: { default: subdued },
+          error: { default: subdued },
+          success: { default: color },
+        },
+      },
+    },
+    keymap: {
+      shortcuts: (id: string) =>
+        id === "session.child.first" ? ["ctrl+j"] : id === "command.palette.show" ? ["ctrl+p"] : [],
+      dispatch: () => undefined,
+    },
+    data: {
+      session: {
+        family: () => ["session", "child"],
+        status: (id: string) => (id === "child" ? "running" : "idle"),
+        get: () => ({ id: "session", location: { directory: "/workspace" } }),
+        cost: () => 0,
+        message: { list: () => [] },
+        goal: {
+          get: () => ({
+            objective: "Ship the TUI goal harness",
+            status: "active",
+            tokensUsed: 0,
+            timeUsedSeconds: 12,
+          }),
+        },
+      },
+      shell: { list: () => [] },
+      location: {
+        model: { list: () => [] },
+      },
+    },
+  } as unknown as Context
+  const app = await testRender(
+    () => <PromptFooter context={context} sessionID="session" mode="normal" showDetails={true} />,
+    {
+      width: 80,
+      height: 2,
+    },
+  )
+
+  try {
+    await app.renderOnce()
+    expect(app.captureCharFrame()).toContain("ctrl+j 1 subagent · Pursuing goal (12s)")
   } finally {
     app.renderer.destroy()
   }
@@ -97,6 +164,7 @@ test("prompt footer can hide details", async () => {
             },
           ],
         },
+        goal: { get: () => undefined },
       },
       shell: { list: () => [] },
       location: {

@@ -16,3 +16,8 @@ export const Info = Schema.Struct({
 export function total(tokens: Info) {
   return tokens.input + tokens.output + tokens.reasoning + tokens.cache.read + tokens.cache.write
 }
+
+/** Tokens charged against a goal budget: non-cached input plus visible output and reasoning. */
+export function billed(tokens: Info) {
+  return tokens.input + tokens.output + tokens.reasoning
+}

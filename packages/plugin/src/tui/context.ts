@@ -23,6 +23,7 @@ import type {
   SkillInfo,
   VcsInfo,
 } from "@opencode/client"
+import type { SessionGoal } from "@opencode/schema/session-goal"
 import type { ResolvedTheme } from "@opencode/theme/tui"
 import type { CliRenderer, KeyEvent, MarkdownCodeBlockRenderer, Renderable } from "@opentui/core"
 import type { JSX } from "@opentui/solid"
@@ -97,6 +98,11 @@ export interface Data {
       invalidate(sessionID: string, location?: LocationRef): void
       reply(input: FormReplyInput, location?: LocationRef): Promise<void>
       cancel(input: FormCancelInput, location?: LocationRef): Promise<void>
+    }
+    readonly goal: {
+      get(sessionID: string):
+        | Pick<SessionGoal.Info, "objective" | "status" | "tokenBudget" | "tokensUsed" | "timeUsedSeconds">
+        | undefined
     }
   }
   readonly project: {
