@@ -145,6 +145,8 @@ export function update(adapter: Adapter, event: SessionEvent.DurableEvent) {
       // Shutdown keeps the execution claim and the resumed drain continues the turn.
       "session.execution.interrupted": (event) =>
         event.data.reason === "shutdown" ? clearCurrentRetry : idle("interrupted"),
+      "session.goal.updated": () => Effect.void,
+      "session.goal.cleared": () => Effect.void,
       "session.instructions.updated": (event) => {
         if (event.data.text === undefined) return Effect.void
         return adapter.appendMessage(

@@ -5,6 +5,7 @@ import { Effect, Stream } from "effect"
 import { Bus } from "../bus.js"
 import { Location } from "../location.js"
 import { Mcp } from "../mcp/index.js"
+import { SessionGoal } from "../session/goal.js"
 import PROMPT_INITIALIZE from "./command/initialize.txt"
 import PROMPT_REVIEW from "./command/review.txt"
 
@@ -14,6 +15,7 @@ export const Plugin = define({
     const location = yield* Location.Service
     const mcp = yield* Mcp.Service
     const bus = yield* Bus.Service
+    const goals = yield* SessionGoal.Service
     const loaded = { prompts: [] as Mcp.Prompt[] }
     yield* bus.subscribe(Mcp.PromptsChanged).pipe(
       Stream.runForEach(() =>
@@ -38,6 +40,37 @@ export const Plugin = define({
               delivery: input.delivery,
             })
             .pipe(Effect.asVoid),
+      })
+      editor.add({
+        name: "goal",
+        description: "set or view the goal for a long-running task",
+        execute: (input) =>
+          Effect.gen(function* () {
+            const text = input.prompt.text.trim()
+            if (!text) return
+            const lower = text.toLowerCase()
+            if (lower === "edit") return
+            if (lower === "clear") {
+              yield* goals.clear(input.sessionID)
+              return
+            }
+            if (lower === "pause") {
+              yield* goals.set({ sessionID: input.sessionID, status: "paused" })
+              return
+            }
+            if (lower === "resume") {
+              yield* goals.set({ sessionID: input.sessionID, status: "active" })
+              return
+            }
+            if (/^every\b/i.test(text))
+              return yield* Effect.fail(new Error("Recurring work belongs to /loop, not /goal."))
+            const timed = text.match(/^(\d+[mh])\s+([\s\S]+)$/i)
+            yield* goals.set({
+              sessionID: input.sessionID,
+              objective: timed ? timed[2].trim() : text,
+              status: "active",
+            })
+          }).pipe(Effect.asVoid),
       })
       editor.add({
         name: "review",
