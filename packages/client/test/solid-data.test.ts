@@ -908,6 +908,75 @@ function activityFixture(read: () => Response | Promise<Response>) {
   }))
 }
 
+test("applies session goal events without fetching the goal during session sync", async () => {
+  const listeners = new Set<Parameters<CreateDataInput["event"]["listen"]>[0]>()
+  const requests: string[] = []
+  const goal = {
+    sessionID: "ses_goal",
+    goalID: "gol_test",
+    objective: "Ship the TUI goal harness",
+    status: "active" as const,
+    tokensUsed: 0,
+    timeUsedSeconds: 0,
+    time: { created: 1, updated: 1 },
+  }
+  const api = OpenCode.make({
+    baseUrl: "http://opencode.local",
+    fetch: async (input, init) => {
+      const request = input instanceof Request ? input : new Request(input, init)
+      const path = new URL(request.url).pathname
+      requests.push(path)
+      if (path === "/api/session/ses_goal") return Response.json({ data: { ...session(0), id: "ses_goal" } })
+      if (path === "/api/session/ses_goal/goal") return Response.json({ data: goal })
+      throw new Error(`Unexpected request: ${request.url}`)
+    },
+  })
+  const setup = createRoot((dispose) => ({
+    data: createData({
+      api: () => api,
+      directory: "/project",
+      event: {
+        on: () => () => {},
+        listen(handler) {
+          listeners.add(handler)
+          return () => listeners.delete(handler)
+        },
+      },
+    }),
+    dispose,
+  }))
+  const emit = (details: OpenCodeEvent) => listeners.forEach((listener) => listener({ name: details.type, details }))
+
+  try {
+    await setup.data.session.sync("ses_goal")
+    expect(setup.data.session.goal.get("ses_goal")).toBeUndefined()
+    expect(requests).toEqual(["/api/session/ses_goal"])
+
+    emit({
+      id: "evt_goal",
+      created: 1,
+      type: "session.goal.updated",
+      durable: { aggregateID: "ses_goal", seq: 1, version: 1 },
+      data: { sessionID: "ses_goal", goal },
+    })
+    expect(setup.data.session.goal.get("ses_goal")).toEqual(goal)
+
+    await setup.data.session.goal.sync("ses_goal")
+    expect(requests).toEqual(["/api/session/ses_goal", "/api/session/ses_goal/goal"])
+
+    emit({
+      id: "evt_goal_cleared",
+      created: 2,
+      type: "session.goal.cleared",
+      durable: { aggregateID: "ses_goal", seq: 2, version: 1 },
+      data: { sessionID: "ses_goal" },
+    })
+    expect(setup.data.session.goal.get("ses_goal")).toBeUndefined()
+  } finally {
+    setup.dispose()
+  }
+})
+
 async function wait(check: () => boolean) {
   const started = Date.now()
   while (!check()) {

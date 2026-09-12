@@ -15,6 +15,8 @@ import { PtyTicket } from "@opencode/core/pty/ticket"
 import { PersistentPty } from "@opencode/core/persistent-pty"
 import { Project } from "@opencode/core/project"
 import { Session } from "@opencode/core/session"
+import { SessionGoal } from "@opencode/core/session/goal"
+import { SessionGoalContinuation } from "@opencode/core/session/goal-continuation"
 import { Instance } from "@opencode/core/instance/service"
 import { SessionTransfer } from "@opencode/core/session/transfer"
 import { ShellSelect } from "@opencode/core/shell/select"
@@ -56,6 +58,8 @@ const applicationServiceNodes = [
   Job.node,
   Project.node,
   Session.node,
+  SessionGoal.node,
+  SessionGoalContinuation.node,
   Instance.node,
   SessionTransfer.node,
   SdkPlugins.node,

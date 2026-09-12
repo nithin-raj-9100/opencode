@@ -1,5 +1,6 @@
 import { Plugin } from "@opencode/plugin/tui"
 import { createMemo, createSignal, Match, Show, Switch } from "solid-js"
+import { footerFeedback, footerLabel } from "../../session/goal"
 import { contextUsage, formatContextUsage } from "../../util/session"
 import { useTerminalDimensions } from "@opentui/solid"
 import { stringWidth } from "../../util/string-width"
@@ -30,6 +31,20 @@ export function PromptFooter(props: {
       .list(props.context.location)
       .filter((shell) => shell.metadata.sessionID === props.sessionID).length
     return count ? `${count} shell${count === 1 ? "" : "s"}` : undefined
+  })
+  const goal = createMemo(() => {
+    if (!props.sessionID) return
+    return props.context.data.session.goal.get(props.sessionID)
+  })
+  const goalText = createMemo(() => {
+    const current = goal()
+    if (!current) return
+    return footerLabel(current)
+  })
+  const goalColor = createMemo(() => {
+    const current = goal()
+    if (!current) return props.context.theme.text.subdued
+    return props.context.theme.text.feedback[footerFeedback(current.status)].default
   })
   const status = createMemo(() => {
     if (!props.sessionID) return []
@@ -62,7 +77,7 @@ export function PromptFooter(props: {
     <Switch>
       <Match when={props.mode === "normal"}>
         <Switch>
-          <Match when={live() || status().length > 0}>
+          <Match when={live() || status().length > 0 || goalText()}>
             <box flexDirection="row" flexShrink={props.showDetails && layout().usage ? 0 : 1} minWidth={0}>
               <Show when={live()}>
                 <box
@@ -84,9 +99,17 @@ export function PromptFooter(props: {
                   </text>
                 </box>
               </Show>
+              <Show when={goalText()}>
+                {(label) => (
+                  <text fg={goalColor()} wrapMode="none" flexShrink={0}>
+                    <Show when={live()}> · </Show>
+                    {label()}
+                  </text>
+                )}
+              </Show>
               <Show when={props.showDetails && layout().usage && status().length > 0}>
                 <text fg={props.context.theme.text.subdued} wrapMode="none" flexShrink={0}>
-                  <Show when={live()}> · </Show>
+                  <Show when={live() || goalText()}> · </Show>
                   {status().join(" · ")}
                 </text>
               </Show>

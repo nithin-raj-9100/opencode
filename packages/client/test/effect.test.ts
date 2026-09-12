@@ -110,6 +110,60 @@ test("session instructions methods use the public HTTP contract", async () => {
   ])
 })
 
+test("session goal methods use the public HTTP contract", async () => {
+  const requests: Array<{ method: string; url: string; body?: unknown }> = []
+  const goal = {
+    sessionID: "ses_test",
+    goalID: "gol_test",
+    objective: "Ship the TUI goal harness",
+    status: "active" as const,
+    tokensUsed: 0,
+    timeUsedSeconds: 0,
+    time: { created: 1, updated: 1 },
+  }
+  const httpClient = HttpClient.make((request) => {
+    requests.push({
+      method: request.method,
+      url: request.url,
+      body: request.body._tag === "Uint8Array" ? JSON.parse(new TextDecoder().decode(request.body.body)) : undefined,
+    })
+    return Effect.succeed(
+      HttpClientResponse.fromWeb(
+        request,
+        request.method === "GET"
+          ? Response.json({ data: goal })
+          : request.method === "DELETE"
+            ? Response.json({ data: { cleared: true } })
+            : Response.json({ data: { ...goal, objective: "Keep going" } }),
+      ),
+    )
+  })
+  const result = await Effect.gen(function* () {
+    const client = yield* OpenCode.make({ baseUrl: "http://localhost:3000" })
+    const current = yield* client.session.goal.get({ sessionID: Session.ID.make("ses_test") })
+    const updated = yield* client.session.goal.set({
+      sessionID: Session.ID.make("ses_test"),
+      objective: "Keep going",
+      status: "active",
+    })
+    const cleared = yield* client.session.goal.clear({ sessionID: Session.ID.make("ses_test") })
+    return { current, updated, cleared }
+  }).pipe(Effect.provideService(HttpClient.HttpClient, httpClient), Effect.runPromise)
+
+  expect(result.current).toMatchObject(goal)
+  expect(result.updated).toMatchObject({ ...goal, objective: "Keep going" })
+  expect(result.cleared).toEqual({ cleared: true })
+  expect(requests).toEqual([
+    { method: "GET", url: "http://localhost:3000/api/session/ses_test/goal", body: undefined },
+    {
+      method: "PUT",
+      url: "http://localhost:3000/api/session/ses_test/goal",
+      body: { objective: "Keep going", status: "active" },
+    },
+    { method: "DELETE", url: "http://localhost:3000/api/session/ses_test/goal", body: undefined },
+  ])
+})
+
 test("event.subscribe exposes and decodes the native Effect event stream", async () => {
   const httpClient = HttpClient.make((request) =>
     Effect.succeed(

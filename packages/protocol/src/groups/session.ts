@@ -5,6 +5,7 @@ import { PromptInput } from "@opencode/schema/prompt-input"
 import { Session } from "@opencode/schema/session"
 import { SessionStats } from "@opencode/schema/session-stats"
 import { InstructionEntry } from "@opencode/schema/instruction-entry"
+import { SessionGoal } from "@opencode/schema/session-goal"
 import { Project } from "@opencode/schema/project"
 import { AbsolutePath, NonNegativeInt, PositiveInt, RelativePath, statics } from "@opencode/schema/schema"
 import { Event } from "@opencode/schema/event"
@@ -621,6 +622,53 @@ export const makeSessionGroup = <I extends HttpApiMiddleware.AnyId, S>(sessionLo
             summary: "Remove instruction entry",
             description:
               "Remove one instruction entry; the removal is announced to the model at the next step boundary.",
+          }),
+        ),
+    )
+    .add(
+      HttpApiEndpoint.get("session.goal.get", "/api/session/:sessionID/goal", {
+        params: { sessionID: Session.ID },
+        success: Schema.Struct({ data: Schema.NullOr(SessionGoal.Info) }),
+        error: SessionNotFoundError,
+      })
+        .middleware(sessionLocationMiddleware)
+        .annotateMerge(
+          OpenApi.annotations({
+            identifier: "v2.session.goal.get",
+            summary: "Get session goal",
+            description: "Get the current session goal, or null when none is set.",
+          }),
+        ),
+    )
+    .add(
+      HttpApiEndpoint.put("session.goal.set", "/api/session/:sessionID/goal", {
+        params: { sessionID: Session.ID },
+        payload: SessionGoal.Set,
+        success: Schema.Struct({ data: SessionGoal.Info }),
+        error: [SessionNotFoundError, InvalidRequestError, ConflictError],
+      })
+        .middleware(sessionLocationMiddleware)
+        .annotateMerge(
+          OpenApi.annotations({
+            identifier: "v2.session.goal.set",
+            summary: "Set session goal",
+            description:
+              "Create or update the session goal. Omit fields to keep them. Pass tokenBudget null to clear a token budget.",
+          }),
+        ),
+    )
+    .add(
+      HttpApiEndpoint.delete("session.goal.clear", "/api/session/:sessionID/goal", {
+        params: { sessionID: Session.ID },
+        success: Schema.Struct({ data: Schema.Struct({ cleared: Schema.Boolean }) }),
+        error: SessionNotFoundError,
+      })
+        .middleware(sessionLocationMiddleware)
+        .annotateMerge(
+          OpenApi.annotations({
+            identifier: "v2.session.goal.clear",
+            summary: "Clear session goal",
+            description: "Remove the session goal. Returns cleared false when none was set.",
           }),
         ),
     )

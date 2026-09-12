@@ -127,6 +127,8 @@ export function update(adapter: Adapter, event: SessionEvent.DurableEvent) {
       "session.execution.succeeded": () => clearCurrentRetry,
       "session.execution.failed": () => clearCurrentRetry,
       "session.execution.interrupted": () => clearCurrentRetry,
+      "session.goal.updated": () => Effect.void,
+      "session.goal.cleared": () => Effect.void,
       "session.instructions.updated": (event) => {
         if (event.data.text === undefined) return Effect.void
         return adapter.appendMessage(

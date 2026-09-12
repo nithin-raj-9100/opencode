@@ -522,6 +522,52 @@ test("session instructions methods use the public HTTP contract", async () => {
   ])
 })
 
+test("session goal methods use the public HTTP contract", async () => {
+  const requests: Array<{ method: string; url: string; body?: unknown }> = []
+  const goal = {
+    sessionID: "ses_test",
+    goalID: "gol_test",
+    objective: "Ship the TUI goal harness",
+    status: "active" as const,
+    tokensUsed: 0,
+    timeUsedSeconds: 0,
+    time: { created: 1, updated: 1 },
+  }
+  const client = OpenCode.make({
+    baseUrl: "http://localhost:3000",
+    fetch: async (input, init) => {
+      const request = input instanceof Request ? input : new Request(input, init)
+      requests.push({
+        method: request.method,
+        url: request.url,
+        body: request.method === "PUT" ? await request.json() : undefined,
+      })
+      if (request.method === "GET") return Response.json({ data: goal })
+      if (request.method === "DELETE") return Response.json({ data: { cleared: true } })
+      return Response.json({ data: { ...goal, objective: "Keep going" } })
+    },
+  })
+
+  expect(await client.session.goal.get({ sessionID: "ses_test" })).toEqual(goal)
+  expect(
+    await client.session.goal.set({
+      sessionID: "ses_test",
+      objective: "Keep going",
+      status: "active",
+    }),
+  ).toEqual({ ...goal, objective: "Keep going" })
+  expect(await client.session.goal.clear({ sessionID: "ses_test" })).toEqual({ cleared: true })
+  expect(requests).toEqual([
+    { method: "GET", url: "http://localhost:3000/api/session/ses_test/goal", body: undefined },
+    {
+      method: "PUT",
+      url: "http://localhost:3000/api/session/ses_test/goal",
+      body: { objective: "Keep going", status: "active" },
+    },
+    { method: "DELETE", url: "http://localhost:3000/api/session/ses_test/goal", body: undefined },
+  ])
+})
+
 test("session.inbox.list uses the public HTTP contract", async () => {
   const requests: Array<{ method: string; url: string }> = []
   const pending = [

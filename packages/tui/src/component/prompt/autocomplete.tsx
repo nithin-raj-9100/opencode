@@ -509,9 +509,17 @@ export function Autocomplete(props: {
         onSelect: slash.arguments ? () => insertSlash(name) : command.run,
       }))
     })
-    const commandNames = new Set<string>()
+    const keymapNames = new Set(
+      keymapCommands().flatMap((command) => {
+        const slash = command.slash
+        if (!slash) return []
+        return [slash.name, ...(slash.aliases ?? [])]
+      }),
+    )
+    const commandNames = new Set<string>(keymapNames)
 
     for (const serverCommand of data.location.command.list(location.current) ?? []) {
+      if (keymapNames.has(serverCommand.name)) continue
       commandNames.add(serverCommand.name)
       results.push({
         display: "/" + serverCommand.name,

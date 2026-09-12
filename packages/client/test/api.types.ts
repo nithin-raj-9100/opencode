@@ -46,6 +46,26 @@ const promiseRemove: Promise<void> = promiseClient.session.instructions.entry.re
   key: "review-notes",
 })
 
+const effectGoalGet: Effect.Effect<unknown, unknown> = effectApi.session.goal.get({ sessionID })
+const effectGoalSet: Effect.Effect<unknown, unknown> = effectApi.session.goal.set({
+  sessionID,
+  objective: "Ship the TUI goal harness",
+  status: "active",
+})
+const effectGoalClear: Effect.Effect<{ readonly cleared: boolean }, unknown> = effectApi.session.goal.clear({
+  sessionID,
+})
+
+const promiseGoalGet: Promise<unknown> = promiseClient.session.goal.get({ sessionID: "ses_test" })
+const promiseGoalSet: Promise<unknown> = promiseClient.session.goal.set({
+  sessionID: "ses_test",
+  objective: "Ship the TUI goal harness",
+  status: "active",
+})
+const promiseGoalClear: Promise<{ readonly cleared: boolean }> = promiseClient.session.goal.clear({
+  sessionID: "ses_test",
+})
+
 void [
   effectSession,
   effectList,
@@ -54,6 +74,12 @@ void [
   promiseList,
   promisePut,
   promiseRemove,
+  effectGoalGet,
+  effectGoalSet,
+  effectGoalClear,
+  promiseGoalGet,
+  promiseGoalSet,
+  promiseGoalClear,
   exactVersion,
   compatibleVersion,
 ]

@@ -37,6 +37,7 @@ import type {
   OpenCodeEvent,
   OpenCodeClient,
   WebSearchProvider,
+  SessionGoalInfo,
 } from "../promise"
 import { Worktree } from "@opencode/schema/worktree"
 import { SessionID } from "@opencode/schema/session-id"
@@ -118,6 +119,7 @@ type Store = {
     permission: Record<string, PermissionRequest[]>
     // Pending forms keyed by owner: a session ID or the temporary "global" elicitation sentinel.
     form: Record<string, FormWithLocation[]>
+    goal: Record<string, SessionGoalInfo | undefined>
   }
   project: {
     info: Record<string, Project>
@@ -238,6 +240,7 @@ export function createData(config: CreateDataInput) {
       pending: {},
       permission: {},
       form: {},
+      goal: {},
     },
     project: {
       info: {},
@@ -568,6 +571,7 @@ export function createData(config: CreateDataInput) {
     sync.invalidate(`session.message:${sessionID}`)
     sync.invalidate(`session.permission:${sessionID}`)
     sync.invalidate(`session.form:${sessionID}:`)
+    sync.invalidate(`session.goal:${sessionID}`)
     setStore(
       "session",
       produce((draft) => {
@@ -579,6 +583,7 @@ export function createData(config: CreateDataInput) {
         delete draft.pending[sessionID]
         delete draft.permission[sessionID]
         delete draft.form[sessionID]
+        delete draft.goal[sessionID]
         for (const [rootID, family] of Object.entries(draft.family)) {
           const next = family.filter((id) => id !== sessionID)
           if (next.length === 0) delete draft.family[rootID]
@@ -799,6 +804,12 @@ export function createData(config: CreateDataInput) {
           metadata: event.metadata,
           time: { created: event.created },
         })
+        return
+      case "session.goal.updated":
+        setStore("session", "goal", event.data.sessionID, reconcile(event.data.goal))
+        return
+      case "session.goal.cleared":
+        setStore("session", "goal", event.data.sessionID, undefined)
         return
       case "session.synthetic":
         message.insert(event.data.sessionID, {
@@ -1739,6 +1750,20 @@ export function createData(config: CreateDataInput) {
         },
         cancel(input: FormCancelInput, ref?: LocationRef) {
           return settleForm(input, ref, api().form.cancel(input, formRequestOptions(input.sessionID, ref)))
+        },
+      },
+      goal: {
+        get(sessionID: string) {
+          return store.session.goal[sessionID]
+        },
+        sync(sessionID: string) {
+          return sync.run(`session.goal:${sessionID}`, async () => {
+            const goal = await api().session.goal.get({ sessionID })
+            setStore("session", "goal", sessionID, goal ?? undefined)
+          })
+        },
+        invalidate(sessionID: string) {
+          sync.invalidate(`session.goal:${sessionID}`)
         },
       },
     },
