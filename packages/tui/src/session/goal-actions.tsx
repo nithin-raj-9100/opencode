@@ -13,6 +13,7 @@ import {
   LOOP_HINT,
   TIME_LIMIT_HINT,
   editedGoalStatus,
+  goalCommandText,
   parseGoalArgs,
   resumeStatuses,
   shouldConfirmReplace,
@@ -36,6 +37,7 @@ export function runSessionGoal(input: {
   dialog: DialogContext
   toast: Toast
   prepare?: () => Promise<void>
+  prompt?: (text: string) => Promise<unknown>
 }) {
   const parsed = parseGoalArgs(input.args)
   if (parsed._tag === "loop") {
@@ -56,10 +58,7 @@ export function runSessionGoal(input: {
     showGoalSummary(input)
     return
   }
-  if (parsed._tag === "clear") {
-    void clearGoal(input)
-    return
-  }
+  if (parsed._tag === "clear") return clearGoal(input)
   if (parsed._tag === "edit") {
     showGoalEditor(input)
     return
@@ -69,8 +68,7 @@ export function runSessionGoal(input: {
       input.toast.show({ message: "No goal is currently set.", variant: "error" })
       return
     }
-    void setGoalStatus(input, parsed._tag === "pause" ? "paused" : "active")
-    return
+    return setGoalStatus(input, parsed._tag === "pause" ? "paused" : "active")
   }
   if (parsed.timeLimited) input.toast.show({ message: TIME_LIMIT_HINT, variant: "warning" })
   if (shouldConfirmReplace(input.goal)) {
@@ -84,11 +82,8 @@ export function runSessionGoal(input: {
     ))
     return
   }
-  if (input.goal) {
-    void replaceGoal(input, parsed.objective)
-    return
-  }
-  void setGoal(input, { objective: parsed.objective, status: "active" })
+  if (input.goal) return replaceGoal(input, parsed.objective)
+  return setGoal(input, { objective: parsed.objective, status: "active" }, true)
 }
 
 export function maybePromptResumePausedGoal(input: {
@@ -176,13 +171,14 @@ async function replaceGoal(
     sessionTitle?: string
     toast: Toast
     prepare?: () => Promise<void>
+    prompt?: (text: string) => Promise<unknown>
   },
   objective: string,
 ) {
   try {
     await input.prepare?.()
     await input.api.session.goal.clear({ sessionID: input.sessionID })
-    await setGoal({ ...input, prepare: undefined }, { objective, status: "active" })
+    await setGoal({ ...input, prepare: undefined }, { objective, status: "active" }, true)
   } catch (error) {
     input.toast.show({ message: `Failed to replace thread goal: ${errorMessage(error)}`, variant: "error" })
   }
@@ -195,11 +191,16 @@ async function setGoal(
     sessionTitle?: string
     toast: Toast
     prepare?: () => Promise<void>
+    prompt?: (text: string) => Promise<unknown>
   },
   payload: { objective?: string; status?: SessionGoalInfo["status"] },
+  recordPrompt = false,
 ) {
   try {
     if (payload.status === "active") await input.prepare?.()
+    if (recordPrompt && payload.objective) {
+      await input.prompt?.(goalCommandText(payload.objective)).catch(() => undefined)
+    }
     const goal = await input.api.session.goal.set({ sessionID: input.sessionID, ...payload })
     if (!input.sessionTitle?.trim() && payload.objective) {
       await input.api.session.rename({ sessionID: input.sessionID, title: payload.objective }).catch(() => undefined)
