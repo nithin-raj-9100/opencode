@@ -107,6 +107,45 @@ export function summaryLines(goal: GoalView) {
   return lines
 }
 
+export function goalCommandText(objective: string) {
+  return `/goal ${objective}`
+}
+
+export function liveTimeUsedSeconds(input: {
+  status: SessionGoal.Status
+  tokenBudget?: number
+  timeUsedSeconds: number
+  running: boolean
+  chargingStartedAt: number | undefined
+  now: number
+}) {
+  if (input.status !== "active") return input.timeUsedSeconds
+  if (input.tokenBudget !== undefined) return input.timeUsedSeconds
+  if (!input.running || input.chargingStartedAt === undefined) return input.timeUsedSeconds
+  return input.timeUsedSeconds + Math.max(0, Math.floor((input.now - input.chargingStartedAt) / 1000))
+}
+
+export function nextChargingStartedAt(input: {
+  sessionID: string
+  status: SessionGoal.Status
+  tokenBudget?: number
+  running: boolean
+  timeUsedSeconds: number
+  previous:
+    | {
+        sessionID: string
+        timeUsedSeconds: number
+        startedAt: number
+      }
+    | undefined
+  now: number
+}) {
+  if (input.status !== "active" || input.tokenBudget !== undefined || !input.running) return
+  if (input.previous?.sessionID === input.sessionID && input.previous.timeUsedSeconds === input.timeUsedSeconds)
+    return input.previous.startedAt
+  return input.now
+}
+
 export function footerLabel(goal: GoalView) {
   if (goal.status === "active") {
     if (goal.tokenBudget !== undefined)
