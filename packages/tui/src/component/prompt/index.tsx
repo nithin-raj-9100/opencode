@@ -1177,7 +1177,11 @@ export function Prompt(props: PromptProps) {
         toast.show({ message: "This prompt cannot be queued", variant: "warning" })
         return false
       }
-      clearPrompt()
+      history.append(historyScope(), {
+        ...store.prompt,
+        mode: store.mode,
+      })
+      resetComposer()
       await slash.command.run(slash.input)
       return true
     }

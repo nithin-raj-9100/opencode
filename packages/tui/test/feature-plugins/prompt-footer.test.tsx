@@ -131,6 +131,68 @@ test("prompt footer shows an active goal next to live status", async () => {
   }
 })
 
+test("prompt footer ticks pursuing goal elapsed time while the session is running", async () => {
+  const color = RGBA.fromInts(200, 200, 200)
+  const subdued = RGBA.fromInts(100, 100, 100)
+  const context = {
+    location: { directory: "/workspace" },
+    theme: {
+      text: {
+        default: color,
+        subdued,
+        feedback: {
+          info: { default: color },
+          warning: { default: subdued },
+          error: { default: subdued },
+          success: { default: color },
+        },
+      },
+    },
+    keymap: {
+      shortcuts: () => [],
+      dispatch: () => undefined,
+    },
+    data: {
+      session: {
+        family: () => ["session"],
+        status: () => "running",
+        get: () => ({ id: "session", location: { directory: "/workspace" } }),
+        cost: () => 0,
+        message: { list: () => [] },
+        goal: {
+          get: () => ({
+            objective: "Ship the TUI goal harness",
+            status: "active",
+            tokensUsed: 0,
+            timeUsedSeconds: 0,
+          }),
+        },
+      },
+      shell: { list: () => [] },
+      location: {
+        model: { list: () => [] },
+      },
+    },
+  } as unknown as Context
+  const app = await testRender(
+    () => <PromptFooter context={context} sessionID="session" mode="normal" showDetails={true} />,
+    {
+      width: 80,
+      height: 2,
+    },
+  )
+
+  try {
+    await app.renderOnce()
+    expect(app.captureCharFrame()).toContain("Pursuing goal (0s)")
+    await Bun.sleep(1100)
+    await app.renderOnce()
+    expect(app.captureCharFrame()).toMatch(/Pursuing goal \([1-9]\d*s\)/)
+  } finally {
+    app.renderer.destroy()
+  }
+})
+
 test("prompt footer can hide details", async () => {
   const color = RGBA.fromInts(200, 200, 200)
   const context = {

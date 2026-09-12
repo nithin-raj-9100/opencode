@@ -23,7 +23,7 @@ import { displayCharAt, mentionTriggerIndex, slashTriggerIndex } from "../../pro
 import type { FileSystemEntry } from "@opencode/client"
 import { Skill } from "@opencode/schema/skill"
 import { stringWidth } from "../../util/string-width"
-import { parseFileLineRange, stripFileLineRange } from "../../prompt/parse"
+import { completeSlashCommand, parseFileLineRange, parseSlashHead, stripFileLineRange } from "../../prompt/parse"
 import { moveSelection, reconcileSelectionWindow, revealSelectionOffset } from "../../ui/select-controller"
 import { directoryAutocomplete, slashArgumentAutocomplete } from "../../prompt/directory-completion"
 
@@ -492,11 +492,16 @@ export function Autocomplete(props: {
   )
 
   function insertSlash(name: string) {
-    const newText = `/${name} `
-    const cursor = props.input().logicalCursor
-    props.input().deleteRange(0, 0, cursor.row, cursor.col)
-    props.input().insertText(newText)
-    props.input().cursorOffset = stringWidth(newText)
+    const current = props.input().plainText
+    const next = completeSlashCommand(name, current)
+    if (next !== current) {
+      const cursor = props.input().logicalCursor
+      props.input().deleteRange(0, 0, cursor.row, cursor.col)
+      props.input().insertText(next)
+      props.input().cursorOffset = stringWidth(next)
+    }
+    if (!parseSlashHead(current, /\s/)?.arguments) return
+    keymap.dispatch("prompt.submit")
   }
 
   const commands = createMemo((): AutocompleteOption[] => {
