@@ -288,7 +288,7 @@ export function Session(props: {
           // disables auto mode.
           if (enabled && attempt < 50) return Bun.sleep(100).then(() => sync(attempt + 1))
           if (local.permission.mode !== "auto") return
-          local.permission.set("normal")
+          local.permission.set("prompt")
           toast.show({ variant: "warning", message: `Unable to enable reviewed auto mode: ${errorMessage(error)}` })
         })
     void sync(0)
