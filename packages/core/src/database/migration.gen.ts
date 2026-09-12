@@ -59,6 +59,8 @@ import m56 from "./migration/20261029073502_session_time_busy.js"
 import m57 from "./migration/20261029165540_schedule_checks.js"
 import m58 from "./migration/20261030054400_job.js"
 
+import goal from "./migration/20260912115926_session-goal.js"
+
 export const migrations = [
   m00,
   m01,
@@ -107,6 +109,7 @@ export const migrations = [
   m44,
   m45,
   m46,
+  goal,
   m47,
   m48,
   m49,
