@@ -219,6 +219,9 @@ const layer = Layer.effect(
       const groups = input.resources.map((resource) =>
         all.filter((rule) => Wildcard.match(input.action, rule.action) && Wildcard.match(resource, rule.resource)),
       )
+      // Last matching rule wins, same as evaluate(). Any-matching-deny would
+      // reject explore's read/glob/grep allows because of the leading `* * deny`.
+      const winners = input.resources.map((resource) => evaluate(input.action, resource, all))
       const gated = autoActive
         ? PermissionAuto.isCriticalRemoval(input.action, input.resources)
           ? {
@@ -230,18 +233,16 @@ const layer = Layer.effect(
               action: input.action,
               resources: input.resources,
               directory: location.directory,
-              denied: groups.some((group) => group.some((rule) => rule.effect === "deny")),
-              contentScopedAsk: groups.some((group) =>
-                group.some((rule) =>
-                  PermissionAuto.isContentScopedAsk({
-                    effect: rule.effect,
-                    implicit: false,
-                    action: rule.action,
-                    resource: rule.resource,
-                  }),
-                ),
+              denied: winners.some((rule) => rule.effect === "deny"),
+              contentScopedAsk: winners.some((rule) =>
+                PermissionAuto.isContentScopedAsk({
+                  effect: rule.effect,
+                  implicit: false,
+                  action: rule.action,
+                  resource: rule.resource,
+                }),
               ),
-              allowed: groups.length > 0 && groups.every((group) => group.some((rule) => rule.effect === "allow")),
+              allowed: winners.length > 0 && winners.every((rule) => rule.effect === "allow"),
             })
         : {
             effect: (groups.some((group) => (group.at(-1)?.effect ?? "ask") === "ask")
