@@ -3712,6 +3712,271 @@
         "summary": "Remove instruction entry"
       }
     },
+    "/api/session/{sessionID}/goal": {
+      "get": {
+        "tags": ["session"],
+        "operationId": "v2.session.goal.get",
+        "parameters": [
+          {
+            "name": "sessionID",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "pattern": "^ses"
+            },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/Session.Goal.Info"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": ["data"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestErrorEncoded"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedErrorEncoded"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "SessionNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/SessionNotFoundErrorEncoded"
+                    },
+                    {
+                      "$ref": "#/components/schemas/SessionNotFoundErrorEncoded"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "description": "Get the current session goal, or null when none is set.",
+        "summary": "Get session goal"
+      },
+      "put": {
+        "tags": ["session"],
+        "operationId": "v2.session.goal.set",
+        "parameters": [
+          {
+            "name": "sessionID",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "pattern": "^ses"
+            },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Session.Goal.Info"
+                    }
+                  },
+                  "required": ["data"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/InvalidRequestErrorEncoded"
+                    },
+                    {
+                      "$ref": "#/components/schemas/InvalidRequestErrorEncoded"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedErrorEncoded"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "SessionNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/SessionNotFoundErrorEncoded"
+                    },
+                    {
+                      "$ref": "#/components/schemas/SessionNotFoundErrorEncoded"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "ConflictError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConflictErrorEncoded"
+                }
+              }
+            }
+          }
+        },
+        "description": "Create or update the session goal. Omit fields to keep them. Pass tokenBudget null to clear a token budget.",
+        "summary": "Set session goal",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Session.Goal.Set"
+              }
+            }
+          },
+          "required": true
+        }
+      },
+      "delete": {
+        "tags": ["session"],
+        "operationId": "v2.session.goal.clear",
+        "parameters": [
+          {
+            "name": "sessionID",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "pattern": "^ses"
+            },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "cleared": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": ["cleared"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["data"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestErrorEncoded"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedErrorEncoded"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "SessionNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/SessionNotFoundErrorEncoded"
+                    },
+                    {
+                      "$ref": "#/components/schemas/SessionNotFoundErrorEncoded"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "description": "Remove the session goal. Returns cleared false when none was set.",
+        "summary": "Clear session goal"
+      }
+    },
     "/api/session/{sessionID}/generate": {
       "post": {
         "tags": ["session"],
@@ -7756,16 +8021,6 @@
                           "type": "null"
                         }
                       ]
-                    },
-                    "workspace": {
-                      "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ]
                     }
                   },
                   "additionalProperties": false
@@ -7790,7 +8045,7 @@
                   "type": "object",
                   "properties": {
                     "location": {
-                      "$ref": "#/components/schemas/Location.InfoEncoded"
+                      "$ref": "#/components/schemas/Location.PublicRef"
                     },
                     "data": {
                       "type": "object",
@@ -7874,16 +8129,6 @@
                           "type": "null"
                         }
                       ]
-                    },
-                    "workspace": {
-                      "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ]
                     }
                   },
                   "additionalProperties": false
@@ -7908,7 +8153,7 @@
                   "type": "object",
                   "properties": {
                     "location": {
-                      "$ref": "#/components/schemas/Location.InfoEncoded"
+                      "$ref": "#/components/schemas/Location.PublicRef"
                     },
                     "data": {
                       "type": "object",
@@ -8001,16 +8246,6 @@
                           "type": "null"
                         }
                       ]
-                    },
-                    "workspace": {
-                      "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ]
                     }
                   },
                   "additionalProperties": false
@@ -8061,6 +8296,17 @@
                 "properties": {
                   "enabled": {
                     "type": "boolean"
+                  },
+                  "source": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": ["mount", "sync", "cleanup"]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   }
                 },
                 "required": ["enabled"],
@@ -17594,6 +17840,79 @@
             "additionalProperties": false
           }
         ]
+      },
+      "Session.Goal.Info": {
+        "type": "object",
+        "properties": {
+          "sessionID": {
+            "type": "string",
+            "pattern": "^ses"
+          },
+          "goalID": {
+            "type": "string",
+            "pattern": "^gol_"
+          },
+          "objective": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/Session.Goal.Status"
+          },
+          "tokenBudget": {
+            "type": "integer",
+            "exclusiveMinimum": 0
+          },
+          "tokensUsed": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "timeUsedSeconds": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "time": {
+            "type": "object",
+            "properties": {
+              "created": {
+                "type": "number"
+              },
+              "updated": {
+                "type": "number"
+              }
+            },
+            "required": ["created", "updated"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["sessionID", "goalID", "objective", "status", "tokensUsed", "timeUsedSeconds", "time"],
+        "additionalProperties": false
+      },
+      "Session.Goal.Set": {
+        "type": "object",
+        "properties": {
+          "objective": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/Session.Goal.Status"
+          },
+          "tokenBudget": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "Session.Goal.Status": {
+        "type": "string",
+        "enum": ["active", "paused", "blocked", "usage_limited", "budget_limited", "complete"]
       },
       "Session.Inbox.Compaction": {
         "type": "object",

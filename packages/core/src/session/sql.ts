@@ -12,6 +12,7 @@ import type { Workspace } from "@opencode/schema/workspace"
 import { Timestamps } from "../database/schema.sql.js"
 import type { Instruction } from "@opencode/schema/instruction"
 import type { Session } from "@opencode/schema/session"
+import type { SessionGoal } from "@opencode/schema/session-goal"
 import type { CompactionPayload, MovePayload, SyntheticPayload, UserPayload } from "@opencode/schema/session-inbox"
 import type { RevertV1 } from "@opencode/schema/session-revert"
 import type { Schema } from "effect"
@@ -142,6 +143,24 @@ export const SessionInboxTable = sqliteTable(
     index("session_inbox_session_delivery_seq_idx").on(table.session_id, table.delivery, table.enqueued_seq),
     uniqueIndex("session_inbox_session_enqueued_seq_idx").on(table.session_id, table.enqueued_seq),
   ],
+)
+
+export const SessionGoalTable = sqliteTable(
+  "session_goal",
+  {
+    session_id: text()
+      .$type<SessionSchema.ID>()
+      .primaryKey()
+      .references(() => SessionTable.id, { onDelete: "cascade" }),
+    goal_id: text().$type<SessionGoal.ID>().notNull(),
+    objective: text().notNull(),
+    status: text().$type<SessionGoal.Status>().notNull(),
+    token_budget: integer(),
+    tokens_used: integer().notNull().default(0),
+    time_used_seconds: integer().notNull().default(0),
+    ...Timestamps,
+  },
+  (table) => [index("session_goal_status_idx").on(table.status)],
 )
 
 export const InstructionEntryTable = sqliteTable(

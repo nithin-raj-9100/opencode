@@ -16,6 +16,8 @@ import { PersistentPty } from "@opencode/core/persistent-pty"
 import { Project } from "@opencode/core/project"
 import { Worktree } from "@opencode/core/worktree"
 import { Session } from "@opencode/core/session"
+import { SessionGoal } from "@opencode/core/session/goal"
+import { SessionGoalContinuation } from "@opencode/core/session/goal-continuation"
 import { Instance } from "@opencode/core/instance/service"
 import { SessionTransfer } from "@opencode/core/session/transfer"
 import { ShellSelect } from "@opencode/core/shell/select"
@@ -58,6 +60,8 @@ const applicationServiceNodes = [
   Project.node,
   Worktree.node,
   Session.node,
+  SessionGoal.node,
+  SessionGoalContinuation.node,
   Instance.node,
   SessionTransfer.node,
   SdkPlugins.node,

@@ -169,6 +169,8 @@ export type SessionInboxCompactionPayload = {}
 
 export type InstructionEntryKey = string
 
+export type SessionGoalStatus = "active" | "paused" | "blocked" | "usage_limited" | "budget_limited" | "complete"
+
 export type SessionGenerateResponse = { data: { text: string } }
 
 export type LocationRef = { directory: string; workspaceID?: string }
@@ -560,6 +562,17 @@ export type InstructionEntryInfo = { key: InstructionEntryKey; value: JsonValue 
 
 export type InstructionEntrySnapshot = Array<{ key: InstructionEntryKey; value: JsonValue; removed: boolean }>
 
+export type SessionGoalInfo = {
+  sessionID: string
+  goalID: string
+  objective: string
+  status: SessionGoalStatus
+  tokenBudget?: number
+  tokensUsed: number
+  timeUsedSeconds: number
+  time: { created: number; updated: number }
+}
+
 export type SessionAgentSelected = {
   id: string
   created: number
@@ -678,6 +691,16 @@ export type SessionExecutionInterrupted = {
   durable: { aggregateID: string; seq: number; version: 1 }
   location?: LocationRef
   data: { sessionID: string; reason: "user" | "shutdown" | "superseded" | "inactivity" }
+}
+
+export type SessionGoalCleared = {
+  id: string
+  created: number
+  metadata?: { [x: string]: any }
+  type: "session.goal.cleared"
+  durable: { aggregateID: string; seq: number; version: 1 }
+  location?: LocationRef
+  data: { sessionID: string }
 }
 
 export type SessionInstructionsUpdated = {
@@ -1819,6 +1842,16 @@ export type SessionForked = {
   }
 }
 
+export type SessionGoalUpdated = {
+  id: string
+  created: number
+  metadata?: { [x: string]: any }
+  type: "session.goal.updated"
+  durable: { aggregateID: string; seq: number; version: 1 }
+  location?: LocationRef
+  data: { sessionID: string; goal: SessionGoalInfo }
+}
+
 export type SessionToolSuccess = {
   id: string
   created: number
@@ -2344,6 +2377,8 @@ export type SessionEventDurable =
   | SessionExecutionSucceeded
   | SessionExecutionFailed
   | SessionExecutionInterrupted
+  | SessionGoalUpdated
+  | SessionGoalCleared
   | SessionInstructionsUpdated
   | SessionSynthetic
   | SessionSkillActivated
@@ -2407,6 +2442,8 @@ export type V2Event =
   | SessionExecutionSucceeded
   | SessionExecutionFailed
   | SessionExecutionInterrupted
+  | SessionGoalUpdated
+  | SessionGoalCleared
   | SessionInstructionsUpdated
   | SessionSynthetic
   | SessionSkillActivated
@@ -4451,6 +4488,35 @@ export type SessionInstructionsEntryRemoveInput = {
 
 export type SessionInstructionsEntryRemoveOutput = void
 
+export type SessionGoalGetInput = { readonly sessionID: { readonly sessionID: string }["sessionID"] }
+
+export type SessionGoalGetOutput = { data: SessionGoalInfo | null }["data"]
+
+export type SessionGoalSetInput = {
+  readonly sessionID: { readonly sessionID: string }["sessionID"]
+  readonly objective?: {
+    readonly objective?: string
+    readonly status?: "active" | "paused" | "blocked" | "usage_limited" | "budget_limited" | "complete"
+    readonly tokenBudget?: number | null
+  }["objective"]
+  readonly status?: {
+    readonly objective?: string
+    readonly status?: "active" | "paused" | "blocked" | "usage_limited" | "budget_limited" | "complete"
+    readonly tokenBudget?: number | null
+  }["status"]
+  readonly tokenBudget?: {
+    readonly objective?: string
+    readonly status?: "active" | "paused" | "blocked" | "usage_limited" | "budget_limited" | "complete"
+    readonly tokenBudget?: number | null
+  }["tokenBudget"]
+}
+
+export type SessionGoalSetOutput = { data: SessionGoalInfo }["data"]
+
+export type SessionGoalClearInput = { readonly sessionID: { readonly sessionID: string }["sessionID"] }
+
+export type SessionGoalClearOutput = { data: { cleared: boolean } }["data"]
+
 export type SessionGenerateInput = {
   readonly sessionID: { readonly sessionID: string }["sessionID"]
   readonly prompt: { readonly prompt: string }["prompt"]
@@ -5742,32 +5808,26 @@ export type PermissionSavedRemoveInput = { readonly id: { readonly id: string }[
 export type PermissionSavedRemoveOutput = void
 
 export type PermissionAutoDefaultsInput = {
-  readonly location?: {
-    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
-  }["location"]
+  readonly location?: { readonly location?: { readonly directory?: string | undefined } | undefined }["location"]
 }
 
 export type PermissionAutoDefaultsOutput = {
-  location: { directory: string; workspaceID?: string; project: { id: string; directory: string; canonical: string } }
+  location: LocationPublicRef
   data: { allow: Array<string>; soft_deny: Array<string>; hard_deny: Array<string>; environment: string }
 }
 
 export type PermissionAutoConfigInput = {
-  readonly location?: {
-    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
-  }["location"]
+  readonly location?: { readonly location?: { readonly directory?: string | undefined } | undefined }["location"]
 }
 
 export type PermissionAutoConfigOutput = {
-  location: { directory: string; workspaceID?: string; project: { id: string; directory: string; canonical: string } }
+  location: LocationPublicRef
   data: { allow: Array<string>; soft_deny: Array<string>; hard_deny: Array<string>; environment: string }
 }
 
 export type PermissionAutoInput = {
   readonly sessionID: { readonly sessionID: string }["sessionID"]
-  readonly location?: {
-    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
-  }["location"]
+  readonly location?: { readonly location?: { readonly directory?: string | undefined } | undefined }["location"]
   readonly enabled: { readonly enabled: boolean; readonly source?: "mount" | "sync" | "cleanup" | undefined }["enabled"]
   readonly source?: { readonly enabled: boolean; readonly source?: "mount" | "sync" | "cleanup" | undefined }["source"]
 }
