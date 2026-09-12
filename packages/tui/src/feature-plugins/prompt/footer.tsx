@@ -1,6 +1,6 @@
 import { Plugin } from "@opencode/plugin/tui"
-import { createMemo, createSignal, Match, Show, Switch } from "solid-js"
-import { footerFeedback, footerLabel } from "../../session/goal"
+import { createEffect, createMemo, createSignal, Match, onCleanup, Show, Switch } from "solid-js"
+import { footerFeedback, footerLabel, liveTimeUsedSeconds, nextChargingStartedAt } from "../../session/goal"
 import { contextUsage, formatContextUsage } from "../../util/session"
 import { useTerminalDimensions } from "@opentui/solid"
 import { stringWidth } from "../../util/string-width"
@@ -36,10 +36,56 @@ export function PromptFooter(props: {
     if (!props.sessionID) return
     return props.context.data.session.goal.get(props.sessionID)
   })
+  const [now, setNow] = createSignal(Date.now())
+  const [chargingStartedAt, setChargingStartedAt] = createSignal<number>()
+  let charging:
+    | {
+        sessionID: string
+        timeUsedSeconds: number
+        startedAt: number
+      }
+    | undefined
+  createEffect(() => {
+    const sessionID = props.sessionID
+    const current = goal()
+    const running = Boolean(sessionID && props.context.data.session.status(sessionID) === "running")
+    const startedAt =
+      sessionID && current
+        ? nextChargingStartedAt({
+            sessionID,
+            status: current.status,
+            tokenBudget: current.tokenBudget,
+            running,
+            timeUsedSeconds: current.timeUsedSeconds,
+            previous: charging,
+            now: Date.now(),
+          })
+        : undefined
+    charging =
+      sessionID && startedAt !== undefined && current
+        ? { sessionID, timeUsedSeconds: current.timeUsedSeconds, startedAt }
+        : undefined
+    setChargingStartedAt(startedAt)
+    if (startedAt === undefined) return
+    setNow(Date.now())
+    const timer = setInterval(() => setNow(Date.now()), 1000)
+    onCleanup(() => clearInterval(timer))
+  })
   const goalText = createMemo(() => {
     const current = goal()
     if (!current) return
-    return footerLabel(current)
+    const running = Boolean(props.sessionID && props.context.data.session.status(props.sessionID) === "running")
+    return footerLabel({
+      ...current,
+      timeUsedSeconds: liveTimeUsedSeconds({
+        status: current.status,
+        tokenBudget: current.tokenBudget,
+        timeUsedSeconds: current.timeUsedSeconds,
+        running,
+        chargingStartedAt: chargingStartedAt(),
+        now: now(),
+      }),
+    })
   })
   const goalColor = createMemo(() => {
     const current = goal()
