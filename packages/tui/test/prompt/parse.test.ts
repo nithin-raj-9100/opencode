@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import { parseFileLineRange, parseSlashHead } from "../../src/prompt/parse"
+import { completeSlashCommand, parseFileLineRange, parseSlashHead } from "../../src/prompt/parse"
 
 test("preserves file line-range parsing semantics", () => {
   expect([
@@ -21,4 +21,11 @@ test("keeps frontend-specific slash separators", () => {
   expect(parseSlashHead("/editor\rfirst")).toEqual({ name: "editor\rfirst", arguments: "", end: 13 })
   expect(parseSlashHead("/editor\rfirst", /\s/)).toEqual({ name: "editor", arguments: "first", end: 7 })
   expect(parseSlashHead("editor")).toBeUndefined()
+})
+
+test("completes slash command names without dropping arguments", () => {
+  expect(completeSlashCommand("goal", "/goal")).toBe("/goal ")
+  expect(completeSlashCommand("goal", "/goal ")).toBe("/goal ")
+  expect(completeSlashCommand("goal", "/goal fix the footer timer")).toBe("/goal fix the footer timer")
+  expect(completeSlashCommand("goal", "/g fix the footer timer")).toBe("/goal fix the footer timer")
 })

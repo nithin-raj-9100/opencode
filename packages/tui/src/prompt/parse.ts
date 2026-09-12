@@ -24,3 +24,9 @@ export function parseSlashHead(text: string, separator = /[ \t\n]/) {
   const split = end + 1
   return { name: text.slice(1, split), arguments: text.slice(split + 1), end: split }
 }
+
+export function completeSlashCommand(name: string, current: string) {
+  const head = parseSlashHead(current, /\s/)
+  if (head?.arguments) return `/${name} ${head.arguments}`
+  return `/${name} `
+}
