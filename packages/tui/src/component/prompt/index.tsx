@@ -1196,7 +1196,11 @@ export function Prompt(props: PromptProps) {
       return true
     }
     if (slash) {
-      clearPrompt()
+      history.append(historyScope(), {
+        ...store.prompt,
+        mode: store.mode,
+      })
+      resetComposer()
       await slash.command.run(slash.input)
       return true
     }
