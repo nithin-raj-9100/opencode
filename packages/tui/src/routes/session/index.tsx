@@ -65,6 +65,7 @@ import { useDialog } from "../../ui/dialog"
 import { DialogSelect } from "../../ui/dialog-select"
 import { DialogSessionRename } from "../../component/dialog-session-rename"
 import { TodoItem } from "../../component/todo-item"
+import { maybePromptResumePausedGoal, runSessionGoal } from "../../session/goal-actions"
 import { DialogImagePreview } from "../../component/dialog-image-preview"
 import { statusLabel } from "../../component/dialog-workspace-file-changes"
 import { DialogMessage } from "./dialog-message"
@@ -267,6 +268,25 @@ export function Session(props: {
   const scrollAcceleration = createMemo(() => getScrollAcceleration(config))
   const toast = useToast()
   const client = useClient()
+  const prepareSessionComposer = () => {
+    const agent = local.agent.current()
+    const selection = local.model.selection()
+    const sessionID = route.sessionID
+    return async () => {
+      if (agent) await client.api.session.switchAgent({ sessionID, agent: agent.id })
+      if (!selection) return
+      const model = {
+        providerID: selection.providerID,
+        id: selection.modelID,
+        ...(selection.variant === undefined ? {} : { variant: selection.variant }),
+      }
+      const cancelCommit = agent ? local.model.trackSessionCommit(sessionID, model, agent.id) : undefined
+      await client.api.session.switchModel({ sessionID, model }).catch((error) => {
+        cancelCommit?.()
+        throw error
+      })
+    }
+  }
   let autoSynced = false
   let autoRequested = false
   let autoSync = 0
@@ -819,6 +839,7 @@ export function Session(props: {
         })
     }),
   )
+  const resumeGoalPrompted = new Set<string>()
   const runPendingAction = createSingleFlight<string>()
   const mutatePending = async (action: PendingAction, inboxID: string, failureLabel?: string) => {
     const result = await runPendingAction(inboxID, async () => {
@@ -1137,6 +1158,25 @@ export function Session(props: {
             ? client.api.session.update({ sessionID: route.sessionID, title })
             : data.session.title.generate(route.sessionID)
         ).catch((error) => toast.error(error))
+      },
+    },
+    {
+      title: "Set or view the session goal",
+      id: "session.goal",
+      group: "Session",
+      slash: { name: "goal", arguments: true as const },
+      description: "set or view the goal for a long-running task",
+      run: (input?: string) => {
+        runSessionGoal({
+          sessionID: route.sessionID,
+          args: input,
+          api: client.api,
+          goal: data.session.goal.get(route.sessionID),
+          sessionTitle: session()?.title,
+          dialog,
+          toast,
+          prepare: prepareSessionComposer(),
+        })
       },
     },
     {
@@ -1587,9 +1627,22 @@ export function Session(props: {
   createEffect(
     on(
       () => route.sessionID,
-      () => {
+      (sessionID) => {
         setComposer("open", false)
         clearMessageNavigation()
+        resumeGoalPrompted.clear()
+        void data.session.goal.sync(sessionID).then(() => {
+          if (route.sessionID !== sessionID) return
+          maybePromptResumePausedGoal({
+            sessionID,
+            goal: data.session.goal.get(sessionID),
+            api: client.api,
+            dialog,
+            toast,
+            prompted: resumeGoalPrompted,
+            prepare: prepareSessionComposer(),
+          })
+        })
       },
     ),
   )
