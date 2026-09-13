@@ -139,3 +139,77 @@ test("global commands stay reachable when the mode changes", async () => {
     app.renderer.destroy()
   }
 })
+
+test("a slash command's run receives the composer restore callback", async () => {
+  const calls: Array<{ input: string | undefined; restore: (() => void) | undefined }> = []
+  let invoke: (() => void) | undefined
+
+  function Harness() {
+    const commands = Keymap.useCommands()
+    Keymap.createLayer(() => ({
+      commands: [
+        {
+          id: "test.restore",
+          slash: { name: "restore", arguments: true as const },
+          run: (input?: string, _event?: unknown, restore?: () => void) => {
+            calls.push({ input, restore })
+          },
+        },
+      ],
+    }))
+    invoke = () => {
+      const command = commands().find((command) => command.slash?.name === "restore")
+      command?.run("payload", undefined, onRestore)
+    }
+    return <box />
+  }
+
+  const onRestore = () => {}
+  const app = await testRender(() => (
+    <ConfigProvider config={createTuiResolvedConfig()}>
+      <Keymap.Provider>
+        <Harness />
+      </Keymap.Provider>
+    </ConfigProvider>
+  ))
+  try {
+    invoke!()
+    expect(calls).toHaveLength(1)
+    expect(calls[0]!.input).toBe("payload")
+    expect(calls[0]!.restore).toBe(onRestore)
+  } finally {
+    app.renderer.destroy()
+  }
+})
+
+test("a slash command that returns false reports the refusal to its caller", async () => {
+  let refuse: (() => Promise<void | false>) | undefined
+
+  function Harness() {
+    const commands = Keymap.useCommands()
+    Keymap.createLayer(() => ({
+      commands: [
+        {
+          id: "test.refuse",
+          slash: { name: "refuse", arguments: true as const },
+          run: () => false as const,
+        },
+      ],
+    }))
+    refuse = async () => commands().find((command) => command.slash?.name === "refuse")?.run("payload")
+    return <box />
+  }
+
+  const app = await testRender(() => (
+    <ConfigProvider config={createTuiResolvedConfig()}>
+      <Keymap.Provider>
+        <Harness />
+      </Keymap.Provider>
+    </ConfigProvider>
+  ))
+  try {
+    expect(await refuse!()).toBe(false)
+  } finally {
+    app.renderer.destroy()
+  }
+})

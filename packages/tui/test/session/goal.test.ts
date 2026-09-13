@@ -21,7 +21,7 @@ describe("parseGoalArgs", () => {
     expect(parseGoalArgs("edit")).toEqual({ _tag: "edit" })
     expect(parseGoalArgs("pause")).toEqual({ _tag: "pause" })
     expect(parseGoalArgs("resume")).toEqual({ _tag: "resume" })
-    expect(parseGoalArgs("every morning")).toEqual({ _tag: "loop" })
+    expect(parseGoalArgs("every morning")).toEqual({ _tag: "set", objective: "every morning", timeLimited: false })
     expect(parseGoalArgs("30m finish the port")).toEqual({
       _tag: "set",
       objective: "finish the port",
