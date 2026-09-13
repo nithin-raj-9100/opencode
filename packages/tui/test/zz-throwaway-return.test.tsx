@@ -11,9 +11,9 @@ test("useCommands run forwards a false result", async () => {
   function Harness() {
     Keymap.createLayer(() => ({
       commands: [
-        { id: "test.refuse", run() { return false } },
-        { id: "test.async.refuse", async run() { return false } },
-        { id: "test.restore", run(_input: string | undefined, _e: unknown, restore?: () => void) { restore?.(); return false } },
+        { id: "test.refuse", run(): false { return false } },
+        { id: "test.async.refuse", async run(): Promise<false> { return false } },
+        { id: "test.restore", run(_input: string | undefined, _e: unknown, restore?: () => void): false { restore?.(); return false } },
       ],
     }))
     const commands = Keymap.useCommands()
