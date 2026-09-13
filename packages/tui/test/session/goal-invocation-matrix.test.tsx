@@ -97,7 +97,7 @@ async function runRendered(input: RunInput) {
   await mkdir(state, { recursive: true })
   const config = createTuiResolvedConfig()
   const record = makeRecord()
-  let settled: Promise<unknown> | undefined
+  let settled: unknown
 
   function Fixture() {
     const dialog = useDialog()
