@@ -30,6 +30,8 @@ import {
   TextAttributes,
   RGBA,
   MouseEvent,
+  type Renderable,
+  type KeyEvent,
 } from "@opentui/core"
 import { Prompt, type PromptRef } from "../../component/prompt"
 import {
@@ -1178,8 +1180,8 @@ export function Session(props: {
       group: "Session",
       slash: { name: "goal", arguments: true as const },
       description: "set or view the goal for a long-running task",
-      run: (input?: string) => {
-        runSessionGoal({
+      run: (input?: string, _event?: KeyEvent, restore?: () => void) => {
+        return runSessionGoal({
           sessionID: route.sessionID,
           args: input,
           api: client.api,
@@ -1188,12 +1190,18 @@ export function Session(props: {
           dialog,
           toast,
           prepare: prepareSessionComposer(),
-          prompt: (text) =>
-            data.session.prompt({
+          // The goal objective is the only slash-command payload that becomes a
+          // transcript row, so the command owns the unpin the composer's normal
+          // submit path would otherwise have done.
+          prompt: async (text) => {
+            await data.session.prompt({
               sessionID: route.sessionID,
               text,
               resume: false,
-            }),
+            })
+            toBottom()
+          },
+          restorePrompt: restore,
         })
       },
     },
