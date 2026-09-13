@@ -1,3 +1,4 @@
+import { useRenderer } from "@opentui/solid"
 import { Keymap } from "../context/keymap"
 import { useTheme } from "../context/theme"
 import { useNewDesigns } from "../config"
@@ -21,6 +22,7 @@ export function DialogConfirm(props: DialogConfirmProps) {
   const dialog = useDialog()
   const theme = useTheme().surface("dialog")
   const newDesigns = useNewDesigns()
+  const renderer = useRenderer()
   const [store, setStore] = createStore({
     active: "confirm" as "confirm" | "cancel",
   })
@@ -31,12 +33,23 @@ export function DialogConfirm(props: DialogConfirmProps) {
     dialog.clear()
   }
 
+  const dismiss = () => {
+    // Escape dismisses a text selection before it dismisses the dialog, matching
+    // dialog-prompt/dialog-select/the provider's own escape layer. Without this the
+    // first Escape after a copy-on-select drag cancels the dialog instead.
+    if (renderer.getSelection()) {
+      renderer.clearSelection()
+      return
+    }
+    choose("cancel")
+  }
+
   Keymap.createLayer(() => ({
     mode: "modal",
     commands: newDesigns()
       ? [
           { bind: "return", title: "Confirm", group: "Dialog", run: () => choose("confirm") },
-          { bind: "escape", title: "Cancel", group: "Dialog", run: () => choose("cancel") },
+          { bind: "escape", title: "Cancel dialog", group: "Dialog", run: dismiss },
         ]
       : [
           {
@@ -61,11 +74,12 @@ export function DialogConfirm(props: DialogConfirmProps) {
               setStore("active", store.active === "confirm" ? "cancel" : "confirm")
             },
           },
+          { bind: "escape", title: "Cancel dialog", group: "Dialog", run: dismiss },
         ],
   }))
   return (
     <DialogLayout
-      header={<DialogHeader title={props.title} />}
+      header={<DialogHeader title={props.title} onClose={() => choose("cancel")} />}
       footer={{
         actions: {
           primary: [
