@@ -1,4 +1,5 @@
 import { TextAttributes } from "@opentui/core"
+import { useRenderer } from "@opentui/solid"
 import { Keymap } from "../context/keymap"
 import { useTheme } from "../context/theme"
 import { useDialog } from "./dialog"
@@ -20,6 +21,7 @@ export type DialogConfirmProps = {
 export function DialogConfirm(props: DialogConfirmProps) {
   const dialog = useDialog()
   const theme = useTheme().surface("dialog")
+  const renderer = useRenderer()
   const [store, setStore] = createStore({
     active: "confirm" as "confirm" | "cancel",
   })
@@ -53,6 +55,22 @@ export function DialogConfirm(props: DialogConfirmProps) {
           setStore("active", store.active === "confirm" ? "cancel" : "confirm")
         },
       },
+      {
+        bind: "escape",
+        title: "Cancel dialog",
+        group: "Dialog",
+        run: () => {
+          // Escape dismisses a text selection before it dismisses the dialog, matching
+          // dialog-prompt/dialog-select/the provider's own escape layer. Without this the
+          // first Escape after a copy-on-select drag cancels the dialog instead.
+          if (renderer.getSelection()) {
+            renderer.clearSelection()
+            return
+          }
+          props.onCancel?.()
+          dialog.clear()
+        },
+      },
     ],
   }))
   return (
@@ -61,7 +79,13 @@ export function DialogConfirm(props: DialogConfirmProps) {
         <text attributes={TextAttributes.BOLD} fg={theme.text.base}>
           {props.title}
         </text>
-        <text fg={theme.text.muted} onMouseUp={() => dialog.clear()}>
+        <text
+          fg={theme.text.muted}
+          onMouseUp={() => {
+            props.onCancel?.()
+            dialog.clear()
+          }}
+        >
           esc
         </text>
       </box>

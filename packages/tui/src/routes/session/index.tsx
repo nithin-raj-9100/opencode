@@ -24,7 +24,15 @@ import { useTuiPaths, useTuiTerminalEnvironment } from "../../context/runtime"
 import { Spinner, SPINNER_FRAMES } from "../../component/spinner"
 import { PatchDiff } from "../../component/patch-diff"
 import { useTheme, useThemes } from "../../context/theme"
-import { BoxRenderable, ScrollBoxRenderable, addDefaultParsers, TextAttributes, RGBA, MouseEvent } from "@opentui/core"
+import {
+  BoxRenderable,
+  ScrollBoxRenderable,
+  addDefaultParsers,
+  TextAttributes,
+  RGBA,
+  MouseEvent,
+  type KeyEvent,
+} from "@opentui/core"
 import { Prompt, type PromptRef } from "../../component/prompt"
 <import type {
   SessionMessageInfo,
@@ -1037,8 +1045,8 @@ export function Session(props: {
       group: "Session",
       slash: { name: "goal", arguments: true as const },
       description: "set or view the goal for a long-running task",
-      run: (input?: string) => {
-        runSessionGoal({
+      run: (input?: string, _event?: KeyEvent, restore?: () => void) => {
+        return runSessionGoal({
           sessionID: route.sessionID,
           args: input,
           api: client.api,
@@ -1047,12 +1055,18 @@ export function Session(props: {
           dialog,
           toast,
           prepare: prepareSessionComposer(),
-          prompt: (text) =>
-            data.session.prompt({
+          // The goal objective is the only slash-command payload that becomes a
+          // transcript row, so the command owns the unpin the composer's normal
+          // submit path would otherwise have done.
+          prompt: async (text) => {
+            await data.session.prompt({
               sessionID: route.sessionID,
               text,
               resume: false,
-            }),
+            })
+            toBottom()
+          },
+          restorePrompt: restore,
         })
       },
     },

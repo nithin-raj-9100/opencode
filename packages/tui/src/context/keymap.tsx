@@ -56,8 +56,10 @@ const Context = createContext<{
   readonly keymap: OpenTuiKeymap
   readonly config: KeymapConfig
   readonly mode: Mode
-  readonly dispatch: (id: string, input?: string) => void
+  readonly dispatch: (id: string, input?: string, restore?: () => void) => void | false | Promise<void | false>
   readonly input: (id: string) => string | undefined
+  readonly restore: (id: string) => (() => void) | undefined
+  readonly record: (id: string, result: void | false | Promise<void | false>) => void
 }>()
 
 function Provider(props: ParentProps<{ config?: KeymapConfig }>) {
@@ -65,12 +67,22 @@ function Provider(props: ParentProps<{ config?: KeymapConfig }>) {
   const config: KeymapConfig = props.config ?? useConfig().data
   const keymap = createDefaultOpenTuiKeymap(renderer)
   const mode = createMode(keymap)
-  let invocation: { readonly id: string; readonly input?: string } | undefined
-  const dispatch = (id: string, input?: string) => {
+  let invocation:
+    | {
+        readonly id: string
+        readonly input?: string
+        readonly restore?: () => void
+        result?: void | false | Promise<void | false>
+      }
+    | undefined
+  const dispatch = (id: string, input?: string, restore?: () => void) => {
     const previous = invocation
-    invocation = { id, input }
+    invocation = { id, input, restore }
     try {
       keymap.dispatchCommand(id)
+      // A command's refusal reaches its caller only through this channel: the binding wrapper
+      // records the raw run's result here, since dispatchCommand itself returns nothing.
+      return invocation.result
     } finally {
       invocation = previous
     }
@@ -157,6 +169,10 @@ function Provider(props: ParentProps<{ config?: KeymapConfig }>) {
           mode,
           dispatch,
           input: (id) => (invocation?.id === id ? invocation.input : undefined),
+          restore: (id) => (invocation?.id === id ? invocation.restore : undefined),
+          record: (id, result) => {
+            if (invocation?.id === id) invocation.result = result
+          },
         }}
       >
         {props.children}
@@ -238,7 +254,8 @@ function createLayer(input: () => KeymapLayer) {
           ...definition,
           name: id,
           opencode: command,
-          run: (context: CommandContext<Renderable, KeyEvent>) => run(value.input(id), context.event),
+          run: (context: CommandContext<Renderable, KeyEvent>) =>
+            value.record(id, run(value.input(id), context.event, value.restore(id))),
           ...(description === undefined ? {} : { desc: description }),
           ...(group === undefined ? {} : { category: group }),
           ...(palette === undefined ? {} : { namespace: "palette" }),
@@ -340,9 +357,8 @@ function useCommands(): Accessor<readonly KeymapCommand[]> {
         }
         return {
           ...command,
-          run: (input?: string) => {
-            value.dispatch(entry.command.name, input)
-          },
+          run: (input?: string, _event?: KeyEvent, restore?: () => void) =>
+            value.dispatch(entry.command.name, input, restore),
         }
       }),
   )
