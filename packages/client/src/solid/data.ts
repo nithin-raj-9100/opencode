@@ -390,13 +390,18 @@ export function createData(config: CreateDataInput) {
     })
   }
 
+  function inboxRow(item: SessionInboxInfo): SessionMessageInfo | undefined {
+    if (item.type === "user")
+      return { id: item.id, type: "user" as const, ...item.payload, time: { created: item.time.created } }
+    if (item.type === "synthetic")
+      return { id: item.id, type: "synthetic" as const, ...item.payload, time: { created: item.time.created } }
+    return undefined
+  }
+
   function materializeInboxMessage(item: SessionInboxInfo) {
-    if (item.type !== "user" && item.type !== "synthetic") return
+    const row = inboxRow(item)
+    if (!row) return
     message.update(item.sessionID, (draft, index) => {
-      const row =
-        item.type === "user"
-          ? { id: item.id, type: "user" as const, ...item.payload, time: { created: item.time.created } }
-          : { id: item.id, type: "synthetic" as const, ...item.payload, time: { created: item.time.created } }
       const position = index.get(item.id)
       if (position === undefined) return message.append(draft, index, row)
       draft[position] = row
@@ -753,10 +758,15 @@ export function createData(config: CreateDataInput) {
       }
       case "session.inbox.delivered": {
         const admitted = result.session.input.has(event.data.sessionID, event.data.inboxID)
+        const item = store.session.pending[event.data.sessionID]?.find((entry) => entry.id === event.data.inboxID)
         removePending(event.data.sessionID, event.data.inboxID)
+        const row = item ? inboxRow(item) : undefined
         message.update(event.data.sessionID, (draft, index) => {
           const position = index.get(event.data.inboxID)
-          if (position === undefined) return
+          if (position === undefined) {
+            if (admitted && row) message.append(draft, index, { ...row, time: { created: event.created } })
+            return
+          }
           const existing = draft[position]
           if (!existing || !admitted) return
           existing.time.created = event.created
@@ -1076,16 +1086,28 @@ export function createData(config: CreateDataInput) {
           setStore("session", "info", event.data.sessionID, "revert", undefined)
         }
         // The projector also deletes inbox items enqueued at or after the boundary without a cancel event.
+        // A row still in the outbox was minted by this client but not yet echoed, so the server admits it
+        // after committing the revert: it is new work, not reverted history.
+        const survives = (id: string) => id < event.data.to || outbox.has(id)
         setStore(
           "session",
           "pending",
           event.data.sessionID,
-          (store.session.pending[event.data.sessionID] ?? []).filter((item) => item.id < event.data.to),
+          (store.session.pending[event.data.sessionID] ?? []).filter((item) => survives(item.id)),
         )
         message.update(event.data.sessionID, (draft, index) => {
-          const position = draft.findIndex((item) => item.id >= event.data.to)
-          if (position === -1) return
-          for (const item of draft.splice(position)) index.delete(item.id)
+          // The array is ordered by server seq, not by id: session.inbox.delivered moves a
+          // promoted row to the tail, so an id-ordered scan can stop early and leave the
+          // reverted tail on screen. Sweep the whole draft instead.
+          let removed = false
+          for (let at = draft.length - 1; at >= 0; at--) {
+            const item = draft[at]
+            if (item.id < event.data.to || survives(item.id)) continue
+            index.delete(item.id)
+            draft.splice(at, 1)
+            removed = true
+          }
+          if (removed) message.reindex(draft, index, 0)
         })
         return
       case "session.compaction.delta":

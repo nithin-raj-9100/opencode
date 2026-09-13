@@ -409,8 +409,17 @@ export interface KeymapCommand {
   }
   /** Promotes the command in discovery UI. */
   readonly suggested?: boolean | (() => boolean)
-  /** Executes the command. Keyboard dispatch includes its event; programmatic dispatch does not. Return false to continue. */
-  readonly run: (input?: string, event?: KeyEvent) => void | false | Promise<void>
+  /**
+   * Executes the command. Keyboard dispatch includes its event; programmatic dispatch does not.
+   * A slash command is also handed a callback that puts the submitted prompt back into the
+   * composer, for paths that reject the input or decide asynchronously (a confirm dialog).
+   * Return false to continue, which restores the prompt unless the command already did.
+   */
+  readonly run: (
+    input?: string,
+    event?: KeyEvent,
+    restore?: () => void,
+  ) => void | false | Promise<void | false>
 }
 
 export interface KeymapLayer {
