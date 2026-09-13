@@ -1,3 +1,4 @@
+import { useRenderer } from "@opentui/solid"
 import { Keymap } from "../context/keymap"
 import { useTheme } from "../context/theme"
 import { useNewDesigns } from "../config"
@@ -22,6 +23,7 @@ export function DialogConfirm(props: DialogConfirmProps) {
   const dialog = useDialog()
   const theme = useTheme().surface("dialog")
   const newDesigns = useNewDesigns()
+  const renderer = useRenderer()
   const [store, setStore] = createStore({
     active: "confirm" as "confirm" | "cancel",
   })
@@ -30,6 +32,17 @@ export function DialogConfirm(props: DialogConfirmProps) {
     if (key === "confirm") props.onConfirm?.()
     if (key === "cancel") props.onCancel?.()
     dialog.clear()
+  }
+
+  const dismiss = () => {
+    // Escape dismisses a text selection before it dismisses the dialog, matching
+    // dialog-prompt/dialog-select/the provider's own escape layer. Without this the
+    // first Escape after a copy-on-select drag cancels the dialog instead.
+    if (renderer.getSelection()) {
+      renderer.clearSelection()
+      return
+    }
+    choose("cancel")
   }
 
   const toggle = () => setStore("active", store.active === "confirm" ? "cancel" : "confirm")
@@ -42,12 +55,12 @@ export function DialogConfirm(props: DialogConfirmProps) {
       { bind: "right", title: "Next dialog option", group: "Dialog", run: toggle },
       { bind: "tab", title: "Next dialog option", group: "Dialog", run: toggle },
       { bind: "shift+tab", title: "Previous dialog option", group: "Dialog", run: toggle },
-      ...(newDesigns() ? [{ bind: "escape", title: "Cancel", group: "Dialog", run: () => choose("cancel") }] : []),
+      ...(newDesigns() ? [{ bind: "escape", title: "Cancel dialog", group: "Dialog", run: dismiss }] : []),
     ],
   }))
   return (
     <DialogLayout
-      header={<DialogHeader title={props.title} />}
+      header={<DialogHeader title={props.title} onClose={() => choose("cancel")} />}
       buttons={
         <DialogButtons
           buttons={keys.map((key) => ({ label: Locale.titlecase(props.label?.[key] ?? key), run: () => choose(key) }))}
