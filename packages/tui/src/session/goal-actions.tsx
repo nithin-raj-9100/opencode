@@ -10,7 +10,6 @@ import { Locale } from "../util/locale"
 import {
   GOAL_USAGE,
   GOAL_USAGE_HINT,
-  LOOP_HINT,
   TIME_LIMIT_HINT,
   editedGoalStatus,
   goalCommandText,
@@ -28,7 +27,7 @@ type Toast = {
   error: (error: unknown) => void
 }
 
-export function runSessionGoal(input: {
+type GoalCommandInput = {
   sessionID: string
   args: string | undefined
   api: OpenCodeClient
@@ -38,12 +37,14 @@ export function runSessionGoal(input: {
   toast: Toast
   prepare?: () => Promise<void>
   prompt?: (text: string) => Promise<unknown>
-}) {
+  // Puts the submitted line back in the composer. The prompt component clears it
+  // before this runs, so every path that does not turn the objective into a
+  // transcript row must hand it back rather than drop it.
+  restorePrompt?: () => void
+}
+
+export function runSessionGoal(input: GoalCommandInput) {
   const parsed = parseGoalArgs(input.args)
-  if (parsed._tag === "loop") {
-    input.toast.show({ message: LOOP_HINT, variant: "warning" })
-    return
-  }
   if (parsed._tag === "empty" || parsed._tag === "too_long") {
     input.toast.show({
       message:
@@ -52,7 +53,8 @@ export function runSessionGoal(input: {
           : GOAL_USAGE,
       variant: "error",
     })
-    return
+    input.restorePrompt?.()
+    return false
   }
   if (parsed._tag === "summary") {
     showGoalSummary(input)
@@ -66,7 +68,8 @@ export function runSessionGoal(input: {
   if (parsed._tag === "pause" || parsed._tag === "resume") {
     if (!input.goal) {
       input.toast.show({ message: "No goal is currently set.", variant: "error" })
-      return
+      input.restorePrompt?.()
+      return false
     }
     return setGoalStatus(input, parsed._tag === "pause" ? "paused" : "active")
   }
@@ -78,6 +81,7 @@ export function runSessionGoal(input: {
         message={`New objective: ${Locale.truncate(parsed.objective, 200)}`}
         label={{ confirm: "Replace", cancel: "Cancel" }}
         onConfirm={() => void replaceGoal(input, parsed.objective)}
+        onCancel={() => input.restorePrompt?.()}
       />
     ))
     return
@@ -164,42 +168,39 @@ function showGoalEditor(input: {
   ))
 }
 
-async function replaceGoal(
-  input: {
-    sessionID: string
-    api: OpenCodeClient
-    sessionTitle?: string
-    toast: Toast
-    prepare?: () => Promise<void>
-    prompt?: (text: string) => Promise<unknown>
-  },
-  objective: string,
-) {
+type GoalMutationInput = {
+  sessionID: string
+  api: OpenCodeClient
+  sessionTitle?: string
+  toast: Toast
+  prepare?: () => Promise<void>
+  prompt?: (text: string) => Promise<unknown>
+  restorePrompt?: () => void
+}
+
+async function replaceGoal(input: GoalMutationInput, objective: string) {
   try {
     await input.prepare?.()
     await input.api.session.goal.clear({ sessionID: input.sessionID })
-    await setGoal({ ...input, prepare: undefined }, { objective, status: "active" }, true)
+    return await setGoal({ ...input, prepare: undefined }, { objective, status: "active" }, true)
   } catch (error) {
     input.toast.show({ message: `Failed to replace thread goal: ${errorMessage(error)}`, variant: "error" })
+    input.restorePrompt?.()
+    return false
   }
 }
 
 async function setGoal(
-  input: {
-    sessionID: string
-    api: OpenCodeClient
-    sessionTitle?: string
-    toast: Toast
-    prepare?: () => Promise<void>
-    prompt?: (text: string) => Promise<unknown>
-  },
+  input: GoalMutationInput,
   payload: { objective?: string; status?: SessionGoalInfo["status"] },
   recordPrompt = false,
 ) {
+  let recorded = false
   try {
     if (payload.status === "active") await input.prepare?.()
-    if (recordPrompt && payload.objective) {
-      await input.prompt?.(goalCommandText(payload.objective)).catch(() => undefined)
+    if (recordPrompt && payload.objective && input.prompt) {
+      await input.prompt(goalCommandText(payload.objective))
+      recorded = true
     }
     const goal = await input.api.session.goal.set({ sessionID: input.sessionID, ...payload })
     if (!input.sessionTitle?.trim() && payload.objective) {
@@ -212,6 +213,9 @@ async function setGoal(
     })
   } catch (error) {
     input.toast.show({ message: `Failed to set thread goal: ${errorMessage(error)}`, variant: "error" })
+    if (recorded) return
+    input.restorePrompt?.()
+    return false
   }
 }
 
