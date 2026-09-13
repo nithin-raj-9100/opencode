@@ -1182,12 +1182,24 @@ export function Prompt(props: PromptProps) {
       return true
     }
     if (slash) {
-      history.append(historyScope(), {
-        ...store.prompt,
-        mode: store.mode,
-      })
+      // Same contract as the plain branch below: snapshot, clear, and hand the
+      // command a way to put the text back. A command that refuses the input
+      // (or returns false) must not have silently eaten what the user typed.
+      // A command that does admit a transcript row is responsible for its own
+      // scroll unpin; most slash commands leave the transcript where it is.
+      const entry = { ...store.prompt, mode: store.mode }
+      history.append(historyScope(), entry)
       resetComposer()
-      await slash.command.run(slash.input)
+      const restoreEntry = () => {
+        if (disposed || input.isDestroyed || input.plainText !== "") return
+        input.setText(entry.text)
+        setStore("prompt", entry)
+        setStore("mode", entry.mode ?? "normal")
+        restoreExtmarksFromPrompt(entry)
+        input.cursorOffset = entry.text.length
+      }
+      const handled = await slash.command.run(slash.input, undefined, restoreEntry)
+      if (handled === false) restoreEntry()
       return true
     }
     const slashHead = parseSlashHead(inputText, /\s/)

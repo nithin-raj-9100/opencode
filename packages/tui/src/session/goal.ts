@@ -3,7 +3,6 @@ import { SessionGoal } from "@opencode/schema/session-goal"
 export const GOAL_USAGE = "Usage: /goal [<objective>|clear|edit|pause|resume]"
 export const GOAL_USAGE_HINT = "Example: /goal improve benchmark coverage"
 export const TIME_LIMIT_HINT = "Time-limited goals are not supported yet."
-export const LOOP_HINT = "Recurring work belongs to /loop, not /goal."
 
 export type GoalView = {
   readonly objective: string
@@ -21,7 +20,6 @@ export function parseGoalArgs(input: string | undefined) {
   if (lower === "edit") return { _tag: "edit" as const }
   if (lower === "pause") return { _tag: "pause" as const }
   if (lower === "resume") return { _tag: "resume" as const }
-  if (/^every\b/i.test(text)) return { _tag: "loop" as const }
   const timed = text.match(/^(\d+[mh])\s+([\s\S]+)$/i)
   const parsed = SessionGoal.parseObjective(timed ? timed[2].trim() : text)
   if (parsed._tag !== "ok") return parsed
