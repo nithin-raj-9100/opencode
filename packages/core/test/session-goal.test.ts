@@ -183,7 +183,7 @@ describe("SessionGoal", () => {
       const created = yield* session.create({ location })
       yield* bus.publish(SessionEvent.Synthetic, { sessionID: created.id, text: "Keep this message" })
       yield* goals.set({ sessionID: created.id, objective: "Do not copy me" })
-      const forked = yield* session.fork({ sessionID: created.id, boundary: { type: "through" } })
+      const forked = yield* session.fork({ sessionID: created.id })
       expect(yield* goals.get(forked.id)).toBeUndefined()
       expect((yield* goals.get(created.id))?.objective).toBe("Do not copy me")
     }),
