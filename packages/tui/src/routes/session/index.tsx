@@ -278,8 +278,7 @@ export function Session(props: {
   let autoSent: string | undefined
   const autoTarget = () => {
     const directory = location()?.directory
-    const workspaceID = location()?.workspaceID
-    return directory ? { directory, ...(workspaceID ? { workspace: workspaceID } : {}) } : undefined
+    return directory ? { directory } : undefined
   }
   createEffect(() => {
     if (!session()) return
