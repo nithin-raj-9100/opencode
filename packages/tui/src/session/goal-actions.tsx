@@ -204,7 +204,7 @@ async function setGoal(
     }
     const goal = await input.api.session.goal.set({ sessionID: input.sessionID, ...payload })
     if (!input.sessionTitle?.trim() && payload.objective) {
-      await input.api.session.rename({ sessionID: input.sessionID, title: payload.objective }).catch(() => undefined)
+      await input.api.session.update({ sessionID: input.sessionID, title: payload.objective }).catch(() => undefined)
     }
     input.toast.show({
       title: `Goal ${statusLabel(goal.status)}`,
