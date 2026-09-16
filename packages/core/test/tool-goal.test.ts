@@ -79,7 +79,7 @@ describe("GoalTools", () => {
           session: {
             hook: () => Effect.succeed({ dispose: Effect.void }),
             get: () => Effect.succeed({ title: "Existing session" } as never),
-            rename: () => Effect.die("unused session.rename"),
+            update: () => Effect.void,
           },
           tool: {
             transform: registry.transform,

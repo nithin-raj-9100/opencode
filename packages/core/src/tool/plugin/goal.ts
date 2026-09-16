@@ -81,7 +81,7 @@ export const Plugin = {
                     Effect.flatMap((session) => {
                       if (session.title?.trim()) return Effect.void
                       return ctx.session
-                        .rename({ sessionID: context.sessionID, title: goal.objective })
+                        .update({ sessionID: context.sessionID, title: goal.objective })
                         .pipe(Effect.catch(() => Effect.void))
                     }),
                     Effect.catch(() => Effect.void),
