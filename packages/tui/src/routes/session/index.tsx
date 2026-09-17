@@ -34,7 +34,7 @@ import {
   type KeyEvent,
 } from "@opentui/core"
 import { Prompt, type PromptRef } from "../../component/prompt"
-<import type {
+import type {
   SessionMessageInfo,
   SessionMessageAssistant,
   SessionMessageAssistantReasoning,

@@ -1343,7 +1343,7 @@ export function Prompt(props: PromptProps) {
         throw new Error(`Failed to switch model: ${errorMessage(error)}`, { cause: error })
       })
     }
-<    const commitSelection = async () => {
+    const commitSelection = async () => {
       await prepareAgent()
       await commitModel()
     }
