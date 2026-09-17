@@ -492,6 +492,7 @@ const emptyContinuation = (sessionID: Session.ID) =>
       assistantMessageID: SessionMessage.ID.create(),
       agent,
       model,
+      started: 0,
     })
     yield* bus.publish(SessionEvent.Execution.Succeeded, { sessionID })
     yield* Effect.yieldNow
@@ -503,7 +504,7 @@ const failedShell = (sessionID: Session.ID) =>
     const bus = yield* Bus.Service
     const assistantMessageID = SessionMessage.ID.create()
     const callID = SessionMessage.ID.create()
-    yield* bus.publish(SessionEvent.Step.Started, { sessionID, assistantMessageID, agent, model })
+    yield* bus.publish(SessionEvent.Step.Started, { sessionID, assistantMessageID, agent, model, started: 0 })
     yield* bus.publish(SessionEvent.Tool.Input.Started, {
       sessionID,
       assistantMessageID,
@@ -543,7 +544,7 @@ const successfulToolThenEmpty = (sessionID: Session.ID) =>
     const first = SessionMessage.ID.create()
     const second = SessionMessage.ID.create()
     const callID = SessionMessage.ID.create()
-    yield* bus.publish(SessionEvent.Step.Started, { sessionID, assistantMessageID: first, agent, model })
+    yield* bus.publish(SessionEvent.Step.Started, { sessionID, assistantMessageID: first, agent, model, started: 0 })
     yield* bus.publish(SessionEvent.Tool.Input.Started, {
       sessionID,
       assistantMessageID: first,
@@ -570,7 +571,7 @@ const successfulToolThenEmpty = (sessionID: Session.ID) =>
       content: [{ type: "text", text: "ok" }],
       executed: true,
     })
-    yield* bus.publish(SessionEvent.Step.Started, { sessionID, assistantMessageID: second, agent, model })
+    yield* bus.publish(SessionEvent.Step.Started, { sessionID, assistantMessageID: second, agent, model, started: 0 })
     yield* bus.publish(SessionEvent.Execution.Succeeded, { sessionID })
     yield* Effect.yieldNow
     yield* Effect.yieldNow
@@ -582,7 +583,7 @@ const failedShellThenText = (sessionID: Session.ID) =>
     const first = SessionMessage.ID.create()
     const second = SessionMessage.ID.create()
     const callID = SessionMessage.ID.create()
-    yield* bus.publish(SessionEvent.Step.Started, { sessionID, assistantMessageID: first, agent, model })
+    yield* bus.publish(SessionEvent.Step.Started, { sessionID, assistantMessageID: first, agent, model, started: 0 })
     yield* bus.publish(SessionEvent.Tool.Input.Started, {
       sessionID,
       assistantMessageID: first,
@@ -609,7 +610,7 @@ const failedShellThenText = (sessionID: Session.ID) =>
       error: { type: "unknown", message: "exit 1" },
       executed: true,
     })
-    yield* bus.publish(SessionEvent.Step.Started, { sessionID, assistantMessageID: second, agent, model })
+    yield* bus.publish(SessionEvent.Step.Started, { sessionID, assistantMessageID: second, agent, model, started: 0 })
     yield* bus.publish(SessionEvent.Text.Started, { sessionID, assistantMessageID: second, ordinal: 0 })
     yield* bus.publish(SessionEvent.Text.Ended, {
       sessionID,
@@ -630,7 +631,7 @@ const successfulToolThenSteerThenEmpty = (sessionID: Session.ID) =>
     const first = SessionMessage.ID.create()
     const second = SessionMessage.ID.create()
     const callID = SessionMessage.ID.create()
-    yield* bus.publish(SessionEvent.Step.Started, { sessionID, assistantMessageID: first, agent, model })
+    yield* bus.publish(SessionEvent.Step.Started, { sessionID, assistantMessageID: first, agent, model, started: 0 })
     yield* bus.publish(SessionEvent.Tool.Input.Started, {
       sessionID,
       assistantMessageID: first,
@@ -658,7 +659,7 @@ const successfulToolThenSteerThenEmpty = (sessionID: Session.ID) =>
       executed: true,
     })
     yield* bus.publish(SessionEvent.Synthetic, { sessionID, text: "interjected work", description: "steer" })
-    yield* bus.publish(SessionEvent.Step.Started, { sessionID, assistantMessageID: second, agent, model })
+    yield* bus.publish(SessionEvent.Step.Started, { sessionID, assistantMessageID: second, agent, model, started: 0 })
     yield* bus.publish(SessionEvent.Execution.Succeeded, { sessionID })
     yield* Effect.yieldNow
     yield* Effect.yieldNow
