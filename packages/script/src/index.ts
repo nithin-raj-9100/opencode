@@ -34,12 +34,16 @@ const IS_PREVIEW = CHANNEL !== "latest"
 const VERSION = await (async () => {
   if (env.OPENCODE_VERSION) return env.OPENCODE_VERSION
   if (IS_PREVIEW) return `0.0.0-${CHANNEL}-${previewBuildNumber()}`
+  // Offline-tolerant: registry is flaky (cert/reset errors) and the nightly
+  // sync must not fail when it is unreachable. Fall back to the local version.
+  const fallback = typeof rootPkg.version === "string" && semver.valid(rootPkg.version) ? rootPkg.version : "2.0.0"
   const version = await fetch("https://registry.npmjs.org/@opencode%2fcli/latest")
     .then((res) => {
       if (!res.ok) throw new Error(res.statusText)
       return res.json()
     })
-    .then((data: any) => data.version)
+    .then((data: any) => (typeof data?.version === "string" && semver.valid(data.version) ? data.version : fallback))
+    .catch(() => fallback)
   if (semver.lt(version, "2.0.0")) return "2.0.0"
   const [major, minor, patch] = version.split(".").map((x: string) => Number(x) || 0)
   const t = env.OPENCODE_BUMP?.toLowerCase()
