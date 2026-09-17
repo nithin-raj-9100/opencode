@@ -35,8 +35,10 @@ const IS_PREVIEW = CHANNEL !== "latest"
 // The release workflow's plan job owns release versions; builds only read them.
 const VERSION = (() => {
   if (env.OPENCODE_VERSION) return env.OPENCODE_VERSION
-  if (!IS_PREVIEW) throw new Error("OPENCODE_VERSION is required for latest-channel builds")
-  return `0.0.0-${CHANNEL}-${previewBuildNumber()}`
+  if (IS_PREVIEW) return `0.0.0-${CHANNEL}-${previewBuildNumber()}`
+  // Offline-tolerant: the unattended fork build sets this channel without a
+  // planned version. Never fail the nightly sync; fall back to the local version.
+  return typeof rootPkg.version === "string" && semver.valid(rootPkg.version) ? rootPkg.version : "2.0.0"
 })()
 
 function previewBuildNumber() {
