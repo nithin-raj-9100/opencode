@@ -213,7 +213,7 @@ export function PermissionPrompt(props: { request: PermissionRequest; directory?
               </Show>
               <Show when={props.request.message}>
                 <box paddingLeft={2} flexShrink={0}>
-                  <text fg={theme.text.feedback.warning.default}>{props.request.message}</text>
+                  <text fg={theme.text.feedback.warning.base}>{props.request.message}</text>
                 </box>
               </Show>
             </box>

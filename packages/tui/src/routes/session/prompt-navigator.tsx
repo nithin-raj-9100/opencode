@@ -42,7 +42,7 @@ export function PromptNavigator(props: PromptNavigatorProps) {
         onMouseDown={blockSelection}
         onMouseUp={blockSelection}
       >
-        <text fg={theme.border.default} selectable={false}>
+        <text fg={theme.border.base} selectable={false}>
           ┃
         </text>
         <box
@@ -54,7 +54,7 @@ export function PromptNavigator(props: PromptNavigatorProps) {
           backgroundColor={theme.background.raised.base}
         >
           <text
-            fg={props.current > 1 ? theme.text.default : theme.text.subdued}
+            fg={props.current > 1 ? theme.text.base : theme.text.muted}
             selectable={false}
             onMouseUp={(e) => {
               activate(e, props.onPrevious)
@@ -62,11 +62,11 @@ export function PromptNavigator(props: PromptNavigatorProps) {
           >
             ↑
           </text>
-          <text fg={theme.text.subdued} selectable={false}>
+          <text fg={theme.text.muted} selectable={false}>
             {props.current} of {props.total}
           </text>
           <text
-            fg={props.current < props.total ? theme.text.default : theme.text.subdued}
+            fg={props.current < props.total ? theme.text.base : theme.text.muted}
             selectable={false}
             onMouseUp={(e) => {
               activate(e, props.onNext)
