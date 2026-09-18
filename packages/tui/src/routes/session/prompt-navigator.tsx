@@ -51,7 +51,7 @@ export function PromptNavigator(props: PromptNavigatorProps) {
           gap={1}
           paddingLeft={1}
           paddingRight={1}
-          backgroundColor={theme.background.surface.offset}
+          backgroundColor={theme.background.raised.base}
         >
           <text
             fg={props.current > 1 ? theme.text.default : theme.text.subdued}
