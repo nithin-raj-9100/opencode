@@ -138,13 +138,13 @@ test("prompt footer ticks pursuing goal elapsed time while the session is runnin
     location: { directory: "/workspace" },
     theme: {
       text: {
-        default: color,
-        subdued,
+        base: color,
+        muted: subdued,
         feedback: {
-          info: { default: color },
-          warning: { default: subdued },
-          error: { default: subdued },
-          success: { default: color },
+          info: { base: color },
+          warning: { base: subdued },
+          error: { base: subdued },
+          success: { base: color },
         },
       },
     },
