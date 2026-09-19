@@ -84,6 +84,7 @@ describe("GoalTools", () => {
           tool: {
             transform: registry.transform,
             reload: registry.reload,
+            list: registry.list,
             hook: () => Effect.die("unused tool.hook"),
           },
         }),
