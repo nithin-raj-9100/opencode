@@ -90,12 +90,13 @@ describe("GoalTools", () => {
         }),
       ).pipe(Effect.provideService(SessionGoal.Service, goals))
 
-      expect((yield* toolDefinitions(registry)).map((tool) => tool.name)).toEqual([
-        "create_goal",
-        "get_goal",
-        "update_goal",
-        "execute",
-      ])
+      const definitions = yield* toolDefinitions(registry)
+      expect(definitions.map((tool) => tool.name)).toEqual(["create_goal", "get_goal", "update_goal", "execute"])
+      expect(definitions.find((tool) => tool.name === "get_goal")?.inputSchema).toEqual({
+        type: "object",
+        properties: {},
+        additionalProperties: false,
+      })
 
       const createdGoal = yield* executeTool(registry, {
         sessionID,
