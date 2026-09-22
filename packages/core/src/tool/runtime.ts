@@ -176,14 +176,41 @@ const toJsonSchema = (schema: Schema.Top): JsonSchema.JsonSchema => {
   // `{ type: "integer", minimum: 0 }` only when no keyword would be overwritten. Named schemas
   // emit `$ref` plus root `$defs`; inline acyclic local references so providers receive the full
   // nested schema directly, then remove unused `$defs`. Recursive references stay intact because
-  // expanding them would never terminate.
+  // expanding them would never terminate. Empty structs become `anyOf` object|array; rewrite those
+  // to `type: "object"` because function parameters cannot be advertised as a non-object schema.
   const normalized = flattenAllOf(
     Object.keys(document.definitions).length === 0
       ? document.schema
       : { ...document.schema, $defs: document.definitions },
   )
-  return dropDefinitionsIfResolved(inlineLocalReferences(normalized)) as JsonSchema.JsonSchema
+  return dropDefinitionsIfResolved(projectEmptyStructs(inlineLocalReferences(normalized))) as JsonSchema.JsonSchema
 }
+
+// Effect encodes `Schema.Struct({})` as `anyOf: [{ type: "object" }, { type: "array" }]`
+// because `{}` is assignable from arrays. OpenAI-compatible providers reject that as a
+// function schema (`type` is missing, reported as null) and require `type: "object"`.
+const projectEmptyStructs = (value: unknown): unknown => {
+  if (Array.isArray(value)) return value.map(projectEmptyStructs)
+  if (!isRecord(value)) return value
+  const schema = Object.fromEntries(Object.entries(value).map(([key, item]) => [key, projectEmptyStructs(item)]))
+  if (!isEmptyStructAnyOf(schema.anyOf)) return schema
+  const { anyOf: _, ...rest } = schema
+  return {
+    ...rest,
+    type: "object",
+    properties: {},
+    additionalProperties: false,
+  }
+}
+
+const isEmptyStructAnyOf = (anyOf: unknown) => {
+  if (!Array.isArray(anyOf) || anyOf.length !== 2) return false
+  const types = new Set(anyOf.flatMap((item) => (isBareTypeSchema(item) ? [item.type] : [])))
+  return types.size === 2 && types.has("object") && types.has("array")
+}
+
+const isBareTypeSchema = (value: unknown): value is { type: string } =>
+  isRecord(value) && Object.keys(value).length === 1 && typeof value.type === "string"
 
 const flattenAllOf = (value: unknown): unknown => {
   if (Array.isArray(value)) return value.map(flattenAllOf)
