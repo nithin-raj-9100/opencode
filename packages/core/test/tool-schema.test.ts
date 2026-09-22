@@ -45,6 +45,30 @@ test("tools are structural values", async () => {
   })
 })
 
+test("empty Effect object schemas advertise type object", () => {
+  const tool: Info = {
+    name: "get_goal",
+    description: "Get the current goal",
+    input: Schema.Struct({}),
+    output: Schema.Struct({ meta: Schema.Struct({}) }),
+    execute: () => Effect.succeed({ output: { meta: {} } }),
+  }
+
+  expect(definition(tool).inputSchema).toEqual({
+    type: "object",
+    properties: {},
+    additionalProperties: false,
+  })
+  expect(definition(tool).outputSchema).toEqual({
+    type: "object",
+    properties: {
+      meta: { type: "object", properties: {}, additionalProperties: false },
+    },
+    required: ["meta"],
+    additionalProperties: false,
+  })
+})
+
 test("Effect tool schemas use exact optional keys and flatten compatible constraints", () => {
   const tool: Info = {
     name: "constraints",
