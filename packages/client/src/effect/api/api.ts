@@ -1974,7 +1974,7 @@ export type PermissionAutoDefaultsOutput = {
     readonly allow: ReadonlyArray<string>
     readonly soft_deny: ReadonlyArray<string>
     readonly hard_deny: ReadonlyArray<string>
-    readonly environment: string
+    readonly environment: ReadonlyArray<string>
     readonly classifier: "both" | "fast" | "thinking"
     readonly classify_all_shell: boolean
     readonly prompt_injection_probe: boolean
@@ -1994,7 +1994,7 @@ export type PermissionAutoConfigOutput = {
     readonly allow: ReadonlyArray<string>
     readonly soft_deny: ReadonlyArray<string>
     readonly hard_deny: ReadonlyArray<string>
-    readonly environment: string
+    readonly environment: ReadonlyArray<string>
     readonly classifier: "both" | "fast" | "thinking"
     readonly classify_all_shell: boolean
     readonly prompt_injection_probe: boolean

@@ -15,6 +15,7 @@ import { Model } from "./model.js"
 import { ModelRetry } from "./model-retry.js"
 
 export interface TextInput {
+  readonly system?: string
   readonly prompt: string
   readonly model?: Model.Ref
   readonly generation?: { readonly maxTokens?: number; readonly temperature?: number; readonly stop?: ReadonlyArray<string> }
@@ -25,6 +26,7 @@ export interface TextInput {
 export class UnavailableError extends Schema.TaggedError<UnavailableError>()("Generate.UnavailableError", {
   message: Schema.String,
   service: Schema.optional(Schema.String),
+  category: Schema.optional(Schema.Literals(["rate-limited", "server error", "timed out", "connection failed", "refused"])),
 }) {}
 
 export class ModelNotFoundError extends Schema.TaggedError<ModelNotFoundError>()("Generate.ModelNotFoundError", {
@@ -120,6 +122,7 @@ export const layer = Layer.effect(
         .generate(
           ai.request({
             model: resolved.model,
+            ...(input.system ? { system: input.system } : {}),
             prompt: input.prompt,
             ...(input.generation ? { generation: input.generation } : {}),
             ...(input.promptCacheKey ? { promptCacheKey: input.promptCacheKey } : {}),
