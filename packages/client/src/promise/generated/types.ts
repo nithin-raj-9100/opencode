@@ -264,6 +264,17 @@ export type PermissionSource = { type: "tool"; messageID: string; id: string }
 
 export type PermissionSavedID = string
 
+export type PermissionAutoRules = {
+  allow: Array<string>
+  soft_deny: Array<string>
+  hard_deny: Array<string>
+  environment: string
+  classifier: "both" | "fast" | "thinking"
+  classify_all_shell: boolean
+  prompt_injection_probe: boolean
+  model?: { providerID: string; model: string; variant?: string | undefined } | undefined
+}
+
 export type PermissionReviewDecision = "allow" | "deny" | "ask"
 
 export type CommandInfo = { name: string; description?: string }
@@ -2239,7 +2250,7 @@ export type ConfigEntry =
         }>
         permission_auto?: {
           model?: string | { providerID: string; model: string; variant?: string }
-          environment?: string
+          environment?: Array<string> | string
           block?: Array<string>
           soft_deny?: Array<string>
           hard_deny?: Array<string>
@@ -2247,6 +2258,7 @@ export type ConfigEntry =
           classifyAllShell?: boolean
           classifier?: "both" | "fast" | "thinking"
           prompt_injection_probe?: boolean
+          disableAutoMode?: boolean
         }
         agents?: {
           [x: string]: {
@@ -5520,19 +5532,19 @@ export type PermissionAutoDefaultsInput = {
   readonly location?: { readonly location?: { readonly directory?: string | undefined } | undefined }["location"]
 }
 
-export type PermissionAutoDefaultsOutput = {
-  location: LocationPublicRef
-  data: { allow: Array<string>; soft_deny: Array<string>; hard_deny: Array<string>; environment: string }
-}
+export type PermissionAutoDefaultsOutput = { location: LocationPublicRef; data: PermissionAutoRules }
 
 export type PermissionAutoConfigInput = {
   readonly location?: { readonly location?: { readonly directory?: string | undefined } | undefined }["location"]
 }
 
-export type PermissionAutoConfigOutput = {
-  location: LocationPublicRef
-  data: { allow: Array<string>; soft_deny: Array<string>; hard_deny: Array<string>; environment: string }
+export type PermissionAutoConfigOutput = { location: LocationPublicRef; data: PermissionAutoRules }
+
+export type PermissionAutoCritiqueInput = {
+  readonly location?: { readonly location?: { readonly directory?: string | undefined } | undefined }["location"]
 }
+
+export type PermissionAutoCritiqueOutput = { location: LocationPublicRef; data: { text: string } }
 
 export type PermissionAutoInput = {
   readonly sessionID: { readonly sessionID: string }["sessionID"]
@@ -5639,7 +5651,7 @@ export type PermissionDenialsOutput = {
 export type PermissionAutoStatusInput = { readonly sessionID: { readonly sessionID: string }["sessionID"] }
 
 export type PermissionAutoStatusOutput = {
-  data: { enabled: boolean; consecutive: number; total: number; broken: boolean }
+  data: { enabled: boolean; consecutive: number; total: number; broken: boolean; disabled: boolean }
 }["data"]
 
 export type PermissionReplyInput = {
@@ -6188,6 +6200,37 @@ export type ConfigGetOutput = Array<ConfigEntry>
 
 export type ConfigShellsOutput = Array<ConfigShellOption>
 
-export type ConfigUpdateInput = { readonly shell: { readonly shell: string | null }["shell"] }
+export type ConfigUpdateInput = {
+  readonly shell?: {
+    readonly shell?: string | null
+    readonly permission_auto?: {
+      readonly model?: string | { readonly providerID: string; readonly model: string; readonly variant?: string }
+      readonly environment?: ReadonlyArray<string> | string
+      readonly block?: ReadonlyArray<string>
+      readonly soft_deny?: ReadonlyArray<string>
+      readonly hard_deny?: ReadonlyArray<string>
+      readonly allow?: ReadonlyArray<string>
+      readonly classifyAllShell?: boolean
+      readonly classifier?: "both" | "fast" | "thinking"
+      readonly prompt_injection_probe?: boolean
+      readonly disableAutoMode?: boolean
+    } | null
+  }["shell"]
+  readonly permission_auto?: {
+    readonly shell?: string | null
+    readonly permission_auto?: {
+      readonly model?: string | { readonly providerID: string; readonly model: string; readonly variant?: string }
+      readonly environment?: ReadonlyArray<string> | string
+      readonly block?: ReadonlyArray<string>
+      readonly soft_deny?: ReadonlyArray<string>
+      readonly hard_deny?: ReadonlyArray<string>
+      readonly allow?: ReadonlyArray<string>
+      readonly classifyAllShell?: boolean
+      readonly classifier?: "both" | "fast" | "thinking"
+      readonly prompt_injection_probe?: boolean
+      readonly disableAutoMode?: boolean
+    } | null
+  }["permission_auto"]
+}
 
 export type ConfigUpdateOutput = void

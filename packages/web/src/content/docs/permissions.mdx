@@ -21,7 +21,8 @@ Each permission rule resolves to one of:
 
 ## Auto mode
 
-Start OpenCode with `--auto` to automatically approve permission requests that are not explicitly denied.
+Start OpenCode with `--auto` to run reviewed auto mode: an isolated classifier
+reviews consequential tool calls instead of prompting you for each one.
 
 ```bash
 opencode --auto
@@ -33,9 +34,22 @@ You can also use auto mode with [`opencode run`](/docs/cli#run).
 opencode run --auto "Refactor this module"
 ```
 
-Explicit `"deny"` rules are still enforced. Auto mode only changes requests that would otherwise ask for approval.
+Reads and in-project file edits run without review. Shell commands,
+out-of-project edits, subagent launches, web fetches, and web searches go to
+the classifier. Classifier denials return `Blocked by classifier` feedback to
+the agent, and explicit `"deny"` rules are still enforced, including over a
+saved approval. Classifier failures deny by default.
 
-In the TUI, open the command palette and select **Enable auto-approve permissions** or **Disable auto-approve permissions** to change modes. When auto mode is active, the prompt displays a muted `auto` indicator next to the current agent.
+In the TUI, open the command palette and select **Enable reviewed auto mode**
+or **Disable reviewed auto mode**, or use **Cycle permission mode** to move
+between prompt, accept edits, and auto. Set `session.permissions` to `"auto"`
+to start sessions in reviewed auto mode. When auto mode is active, the prompt
+displays a muted `auto` indicator next to the current agent; accept-edits mode
+shows `accept`.
+
+See the [auto mode configuration](/docs/config#reviewed-auto-mode) for
+`permission_auto` rules, trusted environments, and the
+`opencode auto-mode defaults|config|critique|reset` commands.
 
 ---
 
