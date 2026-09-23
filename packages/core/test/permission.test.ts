@@ -307,41 +307,21 @@ describe("Permission", () => {
       expect(yield* service.ask(assertion({ action: "edit", resources: ["src/index.ts"] }))).toMatchObject({
         effect: "allow",
       })
-      expect(
-        yield* service.ask(
-          assertion({
-            id: Permission.ID.create("per_auto_edit"),
-            action: "edit",
-            resources: ["/tmp/outside.ts"],
-          }),
-        ),
-      ).toMatchObject({
-        effect: "ask",
-      })
-      expect(
-        yield* service.ask(
-          assertion({
-            id: Permission.ID.create("per_auto_edit_outside"),
-            action: "edit",
-            resources: ["~/.local/libexec/opencode3-sync-and-build.sh"],
-          }),
-        ),
-      ).toMatchObject({
-        effect: "ask",
-      })
-      expect(yield* service.ask(assertion({ action: "write", resources: [".env"] }))).toMatchObject({
+      expect(yield* service.ask(assertion({ action: "edit", resources: ["/tmp/outside.ts"] }))).toMatchObject({
         effect: "allow",
       })
       expect(
-        yield* service.ask(
-          assertion({ id: Permission.ID.create("per_auto_config"), action: "edit", resources: ["opencode.json"] }),
-        ),
-      ).toMatchObject({ effect: "ask" })
-      expect(
-        yield* service.ask(
-          assertion({ id: Permission.ID.create("per_auto_hook"), action: "edit", resources: [".git/hooks/pre-commit"] }),
-        ),
-      ).toMatchObject({ effect: "ask" })
+        yield* service.ask(assertion({ action: "edit", resources: ["~/.local/libexec/opencode3-sync-and-build.sh"] })),
+      ).toMatchObject({ effect: "allow" })
+      expect(yield* service.ask(assertion({ action: "write", resources: [".env"] }))).toMatchObject({
+        effect: "allow",
+      })
+      expect(yield* service.ask(assertion({ action: "edit", resources: ["opencode.json"] }))).toMatchObject({
+        effect: "allow",
+      })
+      expect(yield* service.ask(assertion({ action: "edit", resources: [".git/hooks/pre-commit"] }))).toMatchObject({
+        effect: "allow",
+      })
       expect(
         yield* service.ask(
           assertion({ id: Permission.ID.create("per_auto_subagent"), action: "subagent", resources: ["general"] }),
@@ -452,25 +432,28 @@ describe("Permission", () => {
     }),
   )
 
-  it.effect("classifies out-of-project edits while auto-allowing in-project edits", () =>
+  it.effect("allows every file edit without the classifier while configured deny still wins", () =>
     Effect.gen(function* () {
-      yield* setup([{ action: "edit", resource: "*", effect: "ask" }])
+      yield* setup([
+        { action: "edit", resource: "*", effect: "ask" },
+        { action: "edit", resource: "secrets/*", effect: "deny" },
+      ])
       const autostate = yield* PermissionAutoState.Service
       const classified: string[] = []
       yield* autostate.bindClassifier((request) => {
         classified.push(request.resources.join(" "))
-        return Effect.succeed({ decision: "allow" as const, reason: "allowed by test classifier" })
+        return Effect.succeed({ decision: "deny" as const, reason: "should not run" })
       })
       yield* autostate.activate(Session.ID.make("ses_test"))
       const service = yield* Permission.Service
       yield* service.assert(assertion({ action: "edit", resources: ["src/index.ts"] }))
       yield* service.assert(assertion({ action: "write", resources: [".env"] }))
-      expect(classified).toEqual([])
       yield* service.assert(assertion({ action: "patch", resources: ["/tmp/outside.ts"] }))
-      yield* service.assert(
-        assertion({ action: "edit", resources: ["~/.local/libexec/opencode3-sync-and-build.sh"] }),
-      )
-      expect(classified).toEqual(["/tmp/outside.ts", "~/.local/libexec/opencode3-sync-and-build.sh"])
+      yield* service.assert(assertion({ action: "edit", resources: ["~/.zshrc"] }))
+      yield* service.assert(assertion({ action: "edit", resources: ["opencode.json"] }))
+      expect(classified).toEqual([])
+      const error = yield* service.assert(assertion({ action: "edit", resources: ["secrets/key"] })).pipe(Effect.flip)
+      expect(error).toBeInstanceOf(Permission.BlockedError)
       expect(yield* service.list()).toEqual([])
     }),
   )
