@@ -174,6 +174,8 @@ import type {
   PermissionAutoDefaultsOutput,
   PermissionAutoConfigInput,
   PermissionAutoConfigOutput,
+  PermissionAutoCritiqueInput,
+  PermissionAutoCritiqueOutput,
   PermissionAutoInput,
   PermissionAutoOutput,
   PermissionCreateInput,
@@ -1583,6 +1585,18 @@ export function make(options: ClientOptions) {
           },
           requestOptions,
         ),
+      auto_critique: (input?: PermissionAutoCritiqueInput, requestOptions?: RequestOptions) =>
+        request<PermissionAutoCritiqueOutput>(
+          {
+            method: "POST",
+            path: `/api/permission/auto/critique`,
+            query: { location: input?.["location"] },
+            successStatus: 200,
+            declaredStatuses: [400, 401],
+            empty: false,
+          },
+          requestOptions,
+        ),
       auto: (input: PermissionAutoInput, requestOptions?: RequestOptions) =>
         request<PermissionAutoOutput>(
           {
@@ -2286,12 +2300,12 @@ export function make(options: ClientOptions) {
           { method: "GET", path: `/api/config/shell`, successStatus: 200, declaredStatuses: [400, 401], empty: false },
           requestOptions,
         ),
-      update: (input: ConfigUpdateInput, requestOptions?: RequestOptions) =>
+      update: (input?: ConfigUpdateInput, requestOptions?: RequestOptions) =>
         request<ConfigUpdateOutput>(
           {
             method: "PATCH",
             path: `/api/experimental/config`,
-            body: { shell: input["shell"] },
+            body: { shell: input?.["shell"], permission_auto: input?.["permission_auto"] },
             successStatus: 204,
             declaredStatuses: [400, 401],
             empty: true,

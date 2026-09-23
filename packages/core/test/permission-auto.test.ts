@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test"
-import { DateTime } from "effect"
+import { Cause, DateTime } from "effect"
 import { Agent } from "@opencode/core/agent"
+import { Generate } from "@opencode/core/generate"
 import { Model } from "@opencode/core/model"
 import { Permission } from "@opencode/core/permission"
 import { PermissionAuto } from "@opencode/core/permission/auto"
@@ -73,6 +74,12 @@ describe("PermissionAuto", () => {
     )
     expect(PermissionAuto.parseInjection("INJECTION: NO\nREASON: Plain compiler output.")).toBeUndefined()
     expect(PermissionAuto.parseInjection("INJECTION: YES")).toBeUndefined()
+  })
+
+  test("surfaces swallowed classifier failures in the denial reason", () => {
+    const cause = Cause.fail(new Generate.UnavailableError({ message: "provider overloaded  (retry suggested)" }))
+    expect(PermissionAuto.failureDetail(cause)).toBe("provider overloaded (retry suggested)")
+    expect(PermissionAuto.failureDetail(Cause.empty)).toBeUndefined()
   })
 
   test("shows the reviewer user intent and tool calls but hides assistant reasoning and tool results", () => {

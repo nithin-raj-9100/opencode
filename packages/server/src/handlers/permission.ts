@@ -163,7 +163,8 @@ export const PermissionHandler = HttpApiBuilder.group(Api, "server.permission", 
         "permission.auto.critique",
         Effect.fn(function* () {
           const auto = yield* PermissionAuto.Service
-          return yield* response({ text: yield* auto.critique() })
+          const text = yield* auto.critique()
+          return yield* response(Effect.succeed({ text }))
         }),
       )
   }),

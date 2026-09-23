@@ -169,8 +169,8 @@ export const Info = Schema.Struct({
       new_location: Schema.optional(Schema.Literals(["launch", "inherit"])).annotate({
         description: "Start new sessions in the TUI launch directory or inherit the active session location",
       }),
-      permissions: Schema.optional(Schema.Literals(["prompt", "autoaccept"])).annotate({
-        description: "Prompt for permission requests or accept them automatically",
+      permissions: Schema.optional(Schema.Literals(["prompt", "autoaccept", "auto"])).annotate({
+        description: "Prompt for permission requests, accept edits automatically, or run reviewed auto mode",
       }),
     }),
   ).annotate({ description: "Session transcript presentation settings" }),
@@ -262,7 +262,7 @@ export type Resolved = Omit<Info, "attention" | "cursor" | "keybinds" | "leader"
   }
   session: Omit<NonNullable<Info["session"]>, "new_location" | "permissions" | "tps"> & {
     new_location: "launch" | "inherit"
-    permissions: "prompt" | "autoaccept"
+    permissions: "prompt" | "autoaccept" | "auto"
     terminal: boolean
     tps: boolean
   }

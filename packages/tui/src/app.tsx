@@ -1219,6 +1219,15 @@ function App() {
           dialog.clear()
         },
       },
+      {
+        name: "permission.cycle",
+        title: "Cycle permission mode",
+        category: "System",
+        run: () => {
+          local.permission.cycle()
+          dialog.clear()
+        },
+      },
     ].map(
       ({ name, category, ...command }) =>
         ({

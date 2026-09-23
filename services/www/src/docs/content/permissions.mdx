@@ -286,10 +286,10 @@ command or start the TUI with `--auto`.
 Reads of any file or folder — including `.env`, `.git`, and home paths such as
 `~/.zshrc` — are allowed by default. That covers `read`, `glob`, `grep`,
 directory listings, and the `external_directory` gate those tools use for
-home paths. Web fetches and web searches skip the classifier too. In-project
-file edits are auto-approved. Shell commands, out-of-project edits, and
-subagent launches go to the classifier even when agent rules would otherwise
-allow them. A configured `deny` still wins.
+home paths. In-project file edits are auto-approved. Shell commands,
+out-of-project edits, subagent launches, web fetches, and web searches go to
+the classifier even when agent rules would otherwise allow them. A configured
+`deny` still wins, including over a saved approval.
 
 The classifier receives user messages, assistant tool calls, the proposed
 action, and its resources. It does not receive assistant prose, reasoning, or
@@ -302,9 +302,22 @@ tool results. It returns one of three decisions:
 
 After three consecutive denials or 20 total denials, auto mode keeps running
 but sends remaining consequential actions to you instead of the classifier.
-Pending requests from child sessions are reviewed through their root session.
-Classifier API failures deny when the iron gate is closed and fall back to a
-human prompt when it is open.
+Approving one of those prompted actions resumes the classifier for the session
+family. Pending requests from child sessions are reviewed through their root
+session. Classifier API failures deny when the iron gate is closed and fall
+back to a human prompt when it is open.
+
+When the classifier request fails, the denial reason names the underlying
+failure when one is known, for example `classifier unavailable: provider
+overloaded`. The server log records the full cause under `automatic permission
+review unavailable`. Set `OPENCODE_AUTO_IRON_GATE=open` to fall back to a
+human prompt instead of denying while the classifier is unreachable, and set
+`permission_auto.model` to a model the background service can reach.
+
+The classifier runs on the configured `model` when set and otherwise on the
+session model, with the session model as a fallback when a configured model is
+unavailable. Every review is sent with a rule-derived cache key so repeated
+contexts reuse provider cache.
 
 While auto mode is active, broad allow rules such as `* / *` and `shell *` are
 suspended so commands reach the classifier. A blanket `shell *` ask is the
@@ -322,8 +335,8 @@ Non-interactive clients must decide
 how to handle approval requests; configured `deny` rules always remain enforced.
 
 `opencode run --auto` classifies each request the same way. Classifier denials
-are printed and the run continues. Human escalations abort the run. Explicit
-`deny` rules remain enforced.
+are printed and the run continues. Human escalations abort the run and exit
+with a non-zero status. Explicit `deny` rules remain enforced.
 
 ## Policies
 
