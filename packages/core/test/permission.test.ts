@@ -296,8 +296,14 @@ describe("Permission", () => {
         yield* service.ask(assertion({ action: "external_directory", resources: ["/Users/me/.zshrc"] })),
       ).toMatchObject({ effect: "allow" })
       expect(
-        yield* service.ask(assertion({ action: "webfetch", resources: ["https://example.com"] })),
-      ).toMatchObject({ effect: "allow" })
+        yield* service.ask(
+          assertion({
+            id: Permission.ID.create("per_auto_webfetch"),
+            action: "webfetch",
+            resources: ["https://example.com"],
+          }),
+        ),
+      ).toMatchObject({ effect: "ask" })
       expect(yield* service.ask(assertion({ action: "edit", resources: ["src/index.ts"] }))).toMatchObject({
         effect: "allow",
       })
@@ -310,26 +316,35 @@ describe("Permission", () => {
           }),
         ),
       ).toMatchObject({
-        effect: "allow",
+        effect: "ask",
       })
       expect(
         yield* service.ask(
           assertion({
+            id: Permission.ID.create("per_auto_edit_outside"),
             action: "edit",
             resources: ["~/.local/libexec/opencode3-sync-and-build.sh"],
           }),
         ),
       ).toMatchObject({
-        effect: "allow",
+        effect: "ask",
       })
       expect(yield* service.ask(assertion({ action: "write", resources: [".env"] }))).toMatchObject({
         effect: "allow",
       })
-      expect(yield* service.ask(assertion({ action: "subagent", resources: ["general"] }))).toMatchObject({
-        effect: "allow",
+      expect(
+        yield* service.ask(
+          assertion({ id: Permission.ID.create("per_auto_subagent"), action: "subagent", resources: ["general"] }),
+        ),
+      ).toMatchObject({
+        effect: "ask",
       })
-      expect(yield* service.ask(assertion({ action: "subagent", resources: ["explore"] }))).toMatchObject({
-        effect: "allow",
+      expect(
+        yield* service.ask(
+          assertion({ id: Permission.ID.create("per_auto_subagent2"), action: "subagent", resources: ["explore"] }),
+        ),
+      ).toMatchObject({
+        effect: "ask",
       })
     }),
   )
@@ -439,45 +454,60 @@ describe("Permission", () => {
     }),
   )
 
-  it.effect("auto-allows file edits in auto mode without the classifier", () =>
+  it.effect("classifies out-of-project edits while auto-allowing in-project edits", () =>
     Effect.gen(function* () {
       yield* setup([{ action: "edit", resource: "*", effect: "ask" }])
       const autostate = yield* PermissionAutoState.Service
-      let classified = 0
-      yield* autostate.bindClassifier(() => {
-        classified++
-        return Effect.succeed(PermissionAuto.unevaluated())
+      const classified: string[] = []
+      yield* autostate.bindClassifier((request) => {
+        classified.push(request.resources.join(" "))
+        return Effect.succeed({ decision: "allow" as const, reason: "allowed by test classifier" })
       })
       yield* autostate.activate(Session.ID.make("ses_test"))
       const service = yield* Permission.Service
-      yield* service.assert(
-        assertion({
-          action: "edit",
-          resources: ["~/.local/libexec/opencode3-sync-and-build.sh"],
-        }),
-      )
+      yield* service.assert(assertion({ action: "edit", resources: ["src/index.ts"] }))
       yield* service.assert(assertion({ action: "write", resources: [".env"] }))
+      expect(classified).toEqual([])
       yield* service.assert(assertion({ action: "patch", resources: ["/tmp/outside.ts"] }))
-      expect(classified).toBe(0)
+      yield* service.assert(
+        assertion({ action: "edit", resources: ["~/.local/libexec/opencode3-sync-and-build.sh"] }),
+      )
+      expect(classified).toEqual(["/tmp/outside.ts", "~/.local/libexec/opencode3-sync-and-build.sh"])
       expect(yield* service.list()).toEqual([])
     }),
   )
 
-  it.effect("auto-allows subagent launches in auto mode without the classifier", () =>
+  it.effect("classifies subagent launches in auto mode", () =>
     Effect.gen(function* () {
       yield* setup([{ action: "subagent", resource: "*", effect: "ask" }])
       const autostate = yield* PermissionAutoState.Service
-      let classified = 0
-      yield* autostate.bindClassifier(() => {
-        classified++
-        return Effect.succeed(PermissionAuto.unevaluated("classifier unavailable"))
+      const classified: string[] = []
+      yield* autostate.bindClassifier((request) => {
+        classified.push(request.resources.join(" "))
+        return Effect.succeed({ decision: "allow" as const, reason: "allowed by test classifier" })
       })
       yield* autostate.activate(Session.ID.make("ses_test"))
       const service = yield* Permission.Service
       yield* service.assert(assertion({ action: "subagent", resources: ["general"] }))
       yield* service.assert(assertion({ action: "subagent", resources: ["explore"] }))
-      yield* service.assert(assertion({ action: "subagent", resources: ["reviewer"] }))
-      expect(classified).toBe(0)
+      expect(classified).toEqual(["general", "explore"])
+      expect(yield* service.list()).toEqual([])
+    }),
+  )
+
+  it.effect("classifies web fetches in auto mode", () =>
+    Effect.gen(function* () {
+      yield* setup()
+      const autostate = yield* PermissionAutoState.Service
+      const classified: string[] = []
+      yield* autostate.bindClassifier((request) => {
+        classified.push(request.resources.join(" "))
+        return Effect.succeed({ decision: "allow" as const, reason: "allowed by test classifier" })
+      })
+      yield* autostate.activate(Session.ID.make("ses_test"))
+      const service = yield* Permission.Service
+      yield* service.assert(assertion({ action: "webfetch", resources: ["https://example.com"] }))
+      expect(classified).toEqual(["https://example.com"])
       expect(yield* service.list()).toEqual([])
     }),
   )
@@ -571,6 +601,19 @@ describe("Permission", () => {
         id: Permission.ID.create("per_test"),
         effect: "deny",
       })
+    }),
+  )
+
+  it.effect("keeps configured deny precedence over saved approvals in auto mode", () =>
+    Effect.gen(function* () {
+      yield* setup()
+      const saved = yield* PermissionSaved.Service
+      yield* saved.add({ projectID: Project.ID.global, action: "bash", resources: ["pwd"] })
+      yield* setRules([{ action: "bash", resource: "*", effect: "deny" }])
+      const autostate = yield* PermissionAutoState.Service
+      yield* autostate.activate(Session.ID.make("ses_test"))
+      const service = yield* Permission.Service
+      expect(yield* service.ask(assertion({ action: "bash", resources: ["pwd"] }))).toMatchObject({ effect: "deny" })
     }),
   )
 

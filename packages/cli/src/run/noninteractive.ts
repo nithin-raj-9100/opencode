@@ -752,6 +752,9 @@ export async function runNonInteractivePrompt(input: Input) {
       if (!emit("error", Date.now(), { error })) UI.error(error.message)
     }
   } finally {
+    // A rejected or paused permission request means the run did not complete
+    // the requested work; surface it to callers instead of exiting 0.
+    if (permissionRejected && process.exitCode === undefined) process.exitCode = 1
     process.off("SIGINT", interrupt)
     controller.abort()
     if (input.compatibility === "v1") await stream.return?.(undefined).catch(() => {})

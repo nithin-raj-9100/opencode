@@ -9,6 +9,23 @@ import { HttpApiEndpoint, HttpApiGroup, HttpApiMiddleware, HttpApiSchema, OpenAp
 import { PermissionNotFoundError, SessionNotFoundError } from "../errors.js"
 import { LocationQuery, locationQueryOpenApi } from "./location.js"
 
+const AutoRules = Schema.Struct({
+  allow: Schema.Array(Schema.String),
+  soft_deny: Schema.Array(Schema.String),
+  hard_deny: Schema.Array(Schema.String),
+  environment: Schema.String,
+  classifier: Schema.Literals(["both", "fast", "thinking"]),
+  classify_all_shell: Schema.Boolean,
+  prompt_injection_probe: Schema.Boolean,
+  model: Schema.optional(
+    Schema.Struct({
+      providerID: Schema.String,
+      model: Schema.String,
+      variant: Schema.optional(Schema.String),
+    }),
+  ),
+}).annotate({ identifier: "Permission.AutoRules" })
+
 export const makePermissionGroup = <
   LocationId extends HttpApiMiddleware.AnyId,
   LocationService,
@@ -60,14 +77,7 @@ export const makePermissionGroup = <
     .add(
       HttpApiEndpoint.get("permission.auto.defaults", "/api/permission/auto/defaults", {
         query: LocationQuery,
-        success: Location.response(
-          Schema.Struct({
-            allow: Schema.Array(Schema.String),
-            soft_deny: Schema.Array(Schema.String),
-            hard_deny: Schema.Array(Schema.String),
-            environment: Schema.String,
-          }),
-        ),
+        success: Location.response(AutoRules),
       })
         .annotateMerge(locationQueryOpenApi)
         .annotateMerge(
@@ -81,14 +91,7 @@ export const makePermissionGroup = <
     .add(
       HttpApiEndpoint.get("permission.auto.config", "/api/permission/auto/config", {
         query: LocationQuery,
-        success: Location.response(
-          Schema.Struct({
-            allow: Schema.Array(Schema.String),
-            soft_deny: Schema.Array(Schema.String),
-            hard_deny: Schema.Array(Schema.String),
-            environment: Schema.String,
-          }),
-        ),
+        success: Location.response(AutoRules),
       })
         .annotateMerge(locationQueryOpenApi)
         .annotateMerge(
@@ -96,6 +99,20 @@ export const makePermissionGroup = <
             identifier: "v2.permission.auto_config",
             summary: "Get effective auto mode config",
             description: "Return the effective auto mode classifier rules with user settings applied.",
+          }),
+        ),
+    )
+    .add(
+      HttpApiEndpoint.post("permission.auto.critique", "/api/permission/auto/critique", {
+        query: LocationQuery,
+        success: Location.response(Schema.Struct({ text: Schema.String })),
+      })
+        .annotateMerge(locationQueryOpenApi)
+        .annotateMerge(
+          OpenApi.annotations({
+            identifier: "v2.permission.auto_critique",
+            summary: "Critique auto mode rules",
+            description: "Review the custom auto mode classifier rules for clarity, conflicts, and false positives.",
           }),
         ),
     )
@@ -221,6 +238,7 @@ export const makePermissionGroup = <
             consecutive: Schema.Number,
             total: Schema.Number,
             broken: Schema.Boolean,
+            disabled: Schema.Boolean,
           }),
         }),
         error: SessionNotFoundError,

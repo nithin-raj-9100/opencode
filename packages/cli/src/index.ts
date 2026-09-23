@@ -55,6 +55,8 @@ const Handlers = Runtime.handlers(Commands, {
   "auto-mode": {
     defaults: () => import("./commands/handlers/auto-mode/defaults"),
     config: () => import("./commands/handlers/auto-mode/config"),
+    critique: () => import("./commands/handlers/auto-mode/critique"),
+    reset: () => import("./commands/handlers/auto-mode/reset"),
   },
   stats: () => import("./commands/handlers/stats"),
   mini: () => import("./commands/handlers/mini"),

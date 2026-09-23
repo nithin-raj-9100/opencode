@@ -297,6 +297,21 @@ const Root = Spec.make(typeof OPENCODE_CLI_NAME === "string" ? OPENCODE_CLI_NAME
           description: "Print the effective auto mode rules with settings applied",
           params: ServerParams,
         }),
+        Spec.make("critique", {
+          description: "Review custom auto mode rules for clarity and conflicts",
+          params: ServerParams,
+        }),
+        Spec.make("reset", {
+          description: "Remove custom auto mode rules from user settings",
+          params: {
+            ...ServerParams,
+            yes: Flag.boolean("yes").pipe(
+              Flag.withAlias("y"),
+              Flag.withDescription("Skip the confirmation prompt"),
+              Flag.withDefault(false),
+            ),
+          },
+        }),
       ],
     }),
     Spec.make("stats", {
