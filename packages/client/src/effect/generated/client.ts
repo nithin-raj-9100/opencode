@@ -183,6 +183,8 @@ import type {
   PermissionAutoDefaultsOutput,
   PermissionAutoConfigInput,
   PermissionAutoConfigOutput,
+  PermissionAutoCritiqueInput,
+  PermissionAutoCritiqueOutput,
   PermissionAutoInput,
   PermissionAutoOutput,
   PermissionCreateInput,
@@ -1177,6 +1179,11 @@ const EndpointPermissionAutoConfig = (raw: RawClient["server.permission"]) => (i
     raw["permission.auto.config"]({ query: { location: input?.["location"] } }).pipe(Effect.mapError(mapClientError)),
   )
 
+const EndpointPermissionAutoCritique = (raw: RawClient["server.permission"]) => (input?: PermissionAutoCritiqueInput) =>
+  preserveEffect<PermissionAutoCritiqueOutput>()(
+    raw["permission.auto.critique"]({ query: { location: input?.["location"] } }).pipe(Effect.mapError(mapClientError)),
+  )
+
 const EndpointPermissionAuto = (raw: RawClient["server.permission"]) => (input: PermissionAutoInput) =>
   preserveEffect<PermissionAutoOutput>()(
     raw["session.permission.auto"]({
@@ -1258,6 +1265,7 @@ const adaptGroupPermission = (raw: RawClient["server.permission"]) => ({
   saved: { list: EndpointPermissionSavedList(raw), remove: EndpointPermissionSavedRemove(raw) },
   auto_defaults: EndpointPermissionAutoDefaults(raw),
   auto_config: EndpointPermissionAutoConfig(raw),
+  auto_critique: EndpointPermissionAutoCritique(raw),
   auto: EndpointPermissionAuto(raw),
   create: EndpointPermissionCreate(raw),
   list: EndpointPermissionList(raw),
@@ -1666,9 +1674,11 @@ const EndpointConfigGet = (raw: RawClient["server.config"]) => (input?: ConfigGe
 const EndpointConfigShells = (raw: RawClient["server.config"]) => () =>
   preserveEffect<ConfigShellsOutput>()(raw["config.shells"]({}).pipe(Effect.mapError(mapClientError)))
 
-const EndpointConfigUpdate = (raw: RawClient["server.config"]) => (input: ConfigUpdateInput) =>
+const EndpointConfigUpdate = (raw: RawClient["server.config"]) => (input?: ConfigUpdateInput) =>
   preserveEffect<ConfigUpdateOutput>()(
-    raw["config.update"]({ payload: { shell: input["shell"] } }).pipe(Effect.mapError(mapClientError)),
+    raw["config.update"]({ payload: { shell: input?.["shell"], permission_auto: input?.["permission_auto"] } }).pipe(
+      Effect.mapError(mapClientError),
+    ),
   )
 
 const adaptGroupConfig = (raw: RawClient["server.config"]) => ({
