@@ -34,7 +34,7 @@ const current = Layer.succeed(
 // The fake classifier delegates to a mutable handler so each test programs its
 // own verdicts and can capture the prompt the reviewer would have sent.
 let handler: (input: Generate.TextInput) => Effect.Effect<string, Generate.Error> = () =>
-  Effect.succeed("<allow>routine</allow>")
+  Effect.succeed("<block>no</block>")
 
 const generateLayer = Layer.succeed(
   Generate.Service,
@@ -114,7 +114,7 @@ describe("PermissionAuto service", () => {
   it.effect("resumes auto mode after a human approves a classifier ask", () =>
     Effect.gen(function* () {
       yield* setup
-      handler = () => Effect.succeed("<block>destructive</block>")
+      handler = () => Effect.succeed("<block>yes</block><category>Git Destructive</category><reason>[Git Destructive] destructive</reason>")
       const auto = yield* PermissionAuto.Service
       yield* auto.set(SESSION, true)
 
@@ -133,7 +133,7 @@ describe("PermissionAuto service", () => {
       })
       expect((yield* auto.status(SESSION)).broken).toBe(false)
 
-      handler = () => Effect.succeed("<allow>routine</allow>")
+      handler = () => Effect.succeed("<block>no</block>")
       expect((yield* auto.review(request("per_b5"))).decision).toBe("allow")
     }),
   )
@@ -144,7 +144,7 @@ describe("PermissionAuto service", () => {
       const seen: Generate.TextInput[] = []
       handler = (input) => {
         seen.push(input)
-        return Effect.succeed("<allow>routine</allow>")
+        return Effect.succeed("<block>no</block>")
       }
       const auto = yield* PermissionAuto.Service
       yield* auto.set(SESSION, true)
@@ -172,7 +172,7 @@ describe("PermissionAuto service", () => {
       const prompts: string[] = []
       handler = (input) => {
         prompts.push(input.prompt)
-        return Effect.succeed("<allow>routine</allow>")
+        return Effect.succeed("<block>no</block>")
       }
       const auto = yield* PermissionAuto.Service
       yield* auto.set(SESSION, true)
@@ -203,8 +203,8 @@ describe("PermissionAuto service", () => {
       handler = (input) => {
         providers.push(String(input.model?.providerID ?? "none"))
         return input.model?.providerID === "primary"
-          ? Effect.fail(new Generate.UnavailableError({ message: "down" }))
-          : Effect.succeed("<allow>routine</allow>")
+          ? Effect.fail(new Generate.UnavailableError({ message: "down", category: "server error" }))
+          : Effect.succeed("<block>no</block>")
       }
       const auto = yield* PermissionAuto.Service
       yield* auto.set(SESSION, true)
@@ -218,7 +218,7 @@ describe("PermissionAuto service", () => {
   it.live("fails closed when the classifier is unavailable", () =>
     Effect.gen(function* () {
       yield* setup
-      handler = () => Effect.fail(new Generate.UnavailableError({ message: "down" }))
+      handler = () => Effect.fail(new Generate.UnavailableError({ message: "down", category: "server error" }))
       const auto = yield* PermissionAuto.Service
       yield* auto.set(SESSION, true)
       const review = yield* auto.review(request("per_unavailable"))

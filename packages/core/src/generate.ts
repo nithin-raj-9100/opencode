@@ -15,6 +15,7 @@ import { Model } from "./model.js"
 import { ModelRetry } from "./model-retry.js"
 
 export interface TextInput {
+  readonly system?: string
   readonly prompt: string
   readonly model?: Model.Ref
   readonly generation?: { readonly maxTokens?: number; readonly temperature?: number; readonly stop?: ReadonlyArray<string> }
@@ -25,6 +26,7 @@ export interface TextInput {
 export class UnavailableError extends Schema.TaggedError<UnavailableError>()("Generate.UnavailableError", {
   message: Schema.String,
   service: Schema.optional(Schema.String),
+  category: Schema.optional(Schema.Literals(["rate-limited", "server error", "timed out", "connection failed", "refused"])),
 }) {}
 
 export class ModelNotFoundError extends Schema.TaggedError<ModelNotFoundError>()("Generate.ModelNotFoundError", {
@@ -92,7 +94,7 @@ export const layer = Layer.effect(
     const executor = yield* RequestExecutor.Service
     const images = yield* ImageClient.Service
     const decisionClient = yield* DecisionClient.Service
-    const app = yield* App.Metadata
+    const app = yield* App.Service
 
     const runText = Effect.fn("Generate.text")(function* (input: TextInput) {
       const resolved = yield* resolver.resolve(input.model).pipe(
@@ -120,26 +122,25 @@ export const layer = Layer.effect(
         .generate(
           ai.request({
             model: resolved.model,
+            ...(input.system ? { system: input.system } : {}),
             prompt: input.prompt,
             ...(input.generation ? { generation: input.generation } : {}),
             ...(input.promptCacheKey ? { promptCacheKey: input.promptCacheKey } : {}),
             ...(input.session
               ? {
-                  http: {
-                    headers: {
-                      "x-session-affinity": input.session.id,
-                      "X-Session-Id": input.session.id,
-                      ...(input.session.parentID ? { "x-parent-session-id": input.session.parentID } : {}),
-                      "User-Agent": App.useragent(app),
-                      "x-opencode-project": input.session.projectID,
-                      "x-opencode-session": input.session.id,
-                      "x-opencode-client": app.name,
-                    },
+                  headers: {
+                    "x-session-affinity": input.session.id,
+                    "X-Session-Id": input.session.id,
+                    ...(input.session.parentID ? { "x-parent-session-id": input.session.parentID } : {}),
+                    "User-Agent": App.useragent(app),
+                    "x-opencode-project": input.session.projectID,
+                    "x-opencode-session": input.session.id,
+                    "x-opencode-client": app.name,
                   },
                 }
               : {
                   // Gateways require session attribution even for a stateless call; no Session is stored.
-                  http: { headers: { "x-opencode-session": SessionID.create() } },
+                  headers: { "x-opencode-session": SessionID.create() },
                 }),
           }),
         )
@@ -300,5 +301,5 @@ function failureReason(tag: AIError["reason"]["_tag"], status: number | undefine
 export const node = makeLocationNode({
   service: Service,
   layer,
-  deps: [ModelResolver.node, Model.node, llmClient, requestExecutor],
+  deps: [App.node, ModelResolver.node, Model.node, llmClient, requestExecutor],
 })

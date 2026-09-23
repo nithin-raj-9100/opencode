@@ -6,14 +6,16 @@ import type { Permission } from "@opencode/schema/permission"
 
 type SessionID = Permission.Request["sessionID"]
 
-type Classifier = (request: Permission.Request) => Effect.Effect<Permission.Review>
+type Verdict = Permission.Review & { readonly feedback?: string; readonly unevaluated?: boolean }
+
+type Classifier = (request: Permission.Request) => Effect.Effect<Verdict>
 
 export interface Interface {
   readonly isActive: (sessionID: SessionID) => Effect.Effect<boolean>
   readonly activate: (sessionID: SessionID) => Effect.Effect<void>
   readonly deactivate: (sessionID: SessionID) => Effect.Effect<void>
   readonly bindClassifier: (classify: Classifier | undefined) => Effect.Effect<void>
-  readonly classify: (request: Permission.Request) => Effect.Effect<Permission.Review | undefined>
+  readonly classify: (request: Permission.Request) => Effect.Effect<Verdict | undefined>
 }
 
 export class Service extends Context.Service<Service, Interface>()("@opencode/PermissionAutoState") {}

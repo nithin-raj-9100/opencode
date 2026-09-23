@@ -41,6 +41,7 @@ import { McpStdio } from "@opencode/core/mcp/stdio"
 import { Permission } from "@opencode/core/permission"
 import { AbsolutePath } from "@opencode/core/schema"
 import { Session } from "@opencode/core/session"
+import { SessionGoal } from "@opencode/core/session/goal"
 import { State } from "@opencode/core/state"
 import { McpTool } from "@opencode/core/tool/mcp"
 import { Command } from "@opencode/core/command"
@@ -3661,6 +3662,7 @@ describe("MCP pool", () => {
           ).pipe(
             Effect.provideService(Mcp.Service, b.mcp),
             Effect.provide(bus),
+            Effect.provide(Layer.mock(SessionGoal.Service, {})),
             Effect.provideService(
               Location.Service,
               Location.Service.of(location({ directory: AbsolutePath.make(directories[1]) })),
