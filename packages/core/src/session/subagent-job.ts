@@ -1,7 +1,8 @@
 export * as SubagentJob from "./subagent-job.js"
 
-import { Effect, Scope } from "effect"
+import { Effect, Option, Scope } from "effect"
 import { Job } from "../job.js"
+import { PermissionAuto } from "../permission/auto.js"
 import { Session } from "../session.js"
 import { SubagentCompletion } from "./subagent-completion.js"
 
@@ -17,6 +18,7 @@ export const make: Effect.Effect<Runner, never, Session.Service | Job.Service | 
   const sessions = yield* Session.Service
   const jobs = yield* Job.Service
   const scope = yield* Scope.Scope
+  const auto = yield* Effect.serviceOption(PermissionAuto.Service)
   // One observer per job generation, including continuations of the same child.
   const notifications = new Set<string>()
 
@@ -26,7 +28,16 @@ export const make: Effect.Effect<Runner, never, Session.Service | Job.Service | 
     notifications.add(key)
     yield* Effect.gen(function* () {
       const info = (yield* jobs.wait({ id: recovery.childSessionID })).info
-      if (info) yield* SubagentCompletion.deliver(sessions, jobs, { ...info, recovery })
+      if (!info) return
+      const output =
+        info.status === "completed" && Option.isSome(auto)
+          ? yield* auto.value.handback({
+              sessionID: recovery.childSessionID,
+              agent: recovery.agent,
+              output: info.output ?? SubagentCompletion.NO_TEXT,
+            })
+          : info.output
+      yield* SubagentCompletion.deliver(sessions, jobs, { ...info, output, recovery })
     }).pipe(
       Effect.ensuring(Effect.sync(() => notifications.delete(key))),
       Effect.forkIn(scope, { startImmediately: true }),
