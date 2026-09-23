@@ -38,7 +38,7 @@ import { SessionSchema } from "./schema.js"
 import { SessionSystemPrompt } from "./system-prompt.js"
 import { toLLMMessages } from "./runner/to-llm-message.js"
 import type { SessionMessage } from "./message.js"
-import { AUTO_PREAMBLE, AUTO_SPARSE_REMINDER, PermissionAuto } from "../permission/auto.js"
+import { AUTO_PREAMBLE, PermissionAuto } from "../permission/auto.js"
 
 const IMAGE_BYTES_TRIGGER = 25 * 1024 * 1024 // 25 MiB
 const IMAGE_BYTES_TARGET = 15 * 1024 * 1024 // 15 MiB
@@ -229,10 +229,7 @@ export const layer = Layer.effect(
       const byName = new Map(tools.definitions.map((t) => [t.name, t]))
       if (kind !== "title" && Option.isSome(auto)) {
         const active = yield* auto.value.enabled(session.id).pipe(Effect.orElseSucceed(() => false))
-        if (active) {
-          const later = input.messages.some((message) => message.role === "assistant")
-          shaped.system.push(SystemPart.make(later ? AUTO_SPARSE_REMINDER : AUTO_PREAMBLE))
-        }
+        if (active) shaped.system.push(SystemPart.make(AUTO_PREAMBLE))
       }
       const hooked = new Map(
         Object.entries(shaped.tools ?? {}).flatMap(([name, d]) => {
@@ -369,7 +366,7 @@ export const layer = Layer.effect(
         executeTool: (call: Parameters<Prepared["executeTool"]>[0]) =>
           tools.execute({ ...call, definitions: hooked }).pipe(
             Effect.flatMap((result) =>
-              Option.isSome(auto) ? auto.value.inspect(session.id, result) : Effect.succeed(result),
+              Option.isSome(auto) ? auto.value.inspect(session.id, call.call.name, result) : Effect.succeed(result),
             ),
             Effect.catchCauseFilter(
               (cause) => {
