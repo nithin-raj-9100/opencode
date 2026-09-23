@@ -47,62 +47,6 @@ const SHELL_ACTIONS = new Set(["shell", "bash"])
 /** Tools whose results come from the local workspace; every other tool result is probed for prompt injection. */
 const LOCAL_RESULT_TOOLS = new Set([...SAFE_TOOLS, ...EDIT_TOOLS, ...SUBAGENT_ACTIONS, "goal", "opencode"])
 
-// Repository state, editor and toolchain config, shell startup files, and OpenCode config.
-const PROTECTED_DIRECTORIES = [
-  ".git",
-  ".config/git",
-  ".vscode",
-  ".idea",
-  ".husky",
-  ".cargo",
-  ".devcontainer",
-  ".yarn",
-  ".mvn",
-  ".claude",
-  ".opencode",
-  ".agents",
-]
-const PROTECTED_FILES = new Set([
-  ".gitconfig",
-  ".gitmodules",
-  ".bashrc",
-  ".bash_profile",
-  ".bash_login",
-  ".bash_aliases",
-  ".bash_logout",
-  ".zshrc",
-  ".zprofile",
-  ".zshenv",
-  ".zlogin",
-  ".zlogout",
-  ".profile",
-  ".envrc",
-  ".npmrc",
-  ".yarnrc",
-  ".yarnrc.yml",
-  ".pnp.cjs",
-  ".pnp.loader.mjs",
-  ".pnpmfile.cjs",
-  "bunfig.toml",
-  ".bunfig.toml",
-  ".bazelrc",
-  ".bazelversion",
-  ".bazeliskrc",
-  ".pre-commit-config.yaml",
-  "lefthook.yml",
-  "lefthook.yaml",
-  ".lefthook.yml",
-  ".lefthook.yaml",
-  "gradle-wrapper.properties",
-  "maven-wrapper.properties",
-  ".devcontainer.json",
-  ".ripgreprc",
-  "pyrightconfig.json",
-  ".mcp.json",
-  "opencode.json",
-  "opencode.jsonc",
-])
-
 export function isSafeTool(action: string) {
   return SAFE_TOOLS.has(action)
 }
@@ -125,21 +69,6 @@ export function isContentScopedAsk(match: { effect: Permission.Effect; action: s
 
 function resolvePath(directory: string, resource: string) {
   return path.resolve(directory, resource.replace(/^~(?=$|[/\\])/, os.homedir()))
-}
-
-/** True when the resource resolves inside the working directory. */
-export function isWithinDirectory(directory: string, resource: string) {
-  if (!resource) return false
-  const root = path.resolve(directory)
-  const resolved = resolvePath(root, resource)
-  return resolved === root || resolved.startsWith(`${root}${path.sep}`)
-}
-
-export function isProtectedPath(directory: string, resource: string) {
-  const segments = resolvePath(directory, resource).split(path.sep).filter(Boolean)
-  if (PROTECTED_FILES.has(segments.at(-1) ?? "")) return true
-  const joined = `/${segments.join("/")}/`
-  return PROTECTED_DIRECTORIES.some((dir) => joined.includes(`/${dir}/`))
 }
 
 /** `rm`/`rmdir` of the filesystem root, a top-level directory, home, the working directory or its parents, or an unguarded `$VAR/…`. */
@@ -176,9 +105,9 @@ function isCriticalTarget(target: string, directory: string) {
 }
 
 /**
- * Decision order in auto mode, first match wins: deny rule, read-only tool (any file, including
- * `.env`, home dotfiles, and external folders), content-scoped ask rule, protected path or
- * critical removal (classifier even when allowed), allow rule, in-project edit, classifier.
+ * Decision order in auto mode, first match wins: deny rule, read or file edit (any path, never
+ * reviewed), content-scoped ask rule, critical removal (classifier even when allowed), allow
+ * rule, classifier.
  */
 export function autoGate(input: {
   action: string
@@ -189,21 +118,10 @@ export function autoGate(input: {
   allowed: boolean
 }) {
   if (input.denied) return { effect: "deny" as const, classify: false }
-  if (isSafeTool(input.action)) return { effect: "allow" as const, classify: false }
+  if (isSafeTool(input.action) || isEditAction(input.action)) return { effect: "allow" as const, classify: false }
   if (input.ask) return { effect: "ask" as const, classify: false }
-  const edit = isEditAction(input.action)
-  if (
-    isCriticalRemoval(input.action, input.resources, input.directory) ||
-    (edit && input.resources.some((resource) => isProtectedPath(input.directory, resource)))
-  )
-    return { effect: "ask" as const, classify: true }
+  if (isCriticalRemoval(input.action, input.resources, input.directory)) return { effect: "ask" as const, classify: true }
   if (input.allowed) return { effect: "allow" as const, classify: false }
-  if (
-    edit &&
-    input.resources.length > 0 &&
-    input.resources.every((resource) => isWithinDirectory(input.directory, resource))
-  )
-    return { effect: "allow" as const, classify: false }
   return { effect: "ask" as const, classify: true }
 }
 

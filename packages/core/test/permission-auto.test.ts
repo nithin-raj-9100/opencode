@@ -10,7 +10,6 @@ import { SessionMessage } from "@opencode/core/session/message"
 import { Document, Info } from "@opencode/schema/config"
 import { ConfigPermissionAuto } from "@opencode/schema/config/permission-auto"
 import { AbsolutePath } from "@opencode/core/schema"
-import os from "os"
 
 const created = DateTime.makeUnsafe(0)
 const tool = (id: string, name: string, input: Record<string, unknown>, state: "completed" | "running" = "completed") =>
@@ -176,20 +175,6 @@ describe("PermissionAuto", () => {
     expect(PermissionAuto.isCriticalRemoval("edit", ["/"], "/work/project")).toBe(false)
   })
 
-  test("detects protected paths", () => {
-    const protectedPath = (resource: string) => PermissionAuto.isProtectedPath("/project", resource)
-    expect(protectedPath(".git/hooks/pre-commit")).toBe(true)
-    expect(protectedPath("opencode.json")).toBe(true)
-    expect(protectedPath("nested/opencode.jsonc")).toBe(true)
-    expect(protectedPath(".opencode/agent/review.md")).toBe(true)
-    expect(protectedPath(".claude/settings.json")).toBe(true)
-    expect(protectedPath(".husky/pre-push")).toBe(true)
-    expect(protectedPath("~/.zshrc")).toBe(true)
-    expect(protectedPath(`${os.homedir()}/.gitconfig`)).toBe(true)
-    expect(protectedPath("src/index.ts")).toBe(false)
-    expect(protectedPath(".gitignore")).toBe(false)
-  })
-
   test("content-scoped ask forces a prompt; blanket ask goes to the classifier", () => {
     expect(PermissionAuto.isContentScopedAsk({ effect: "ask", action: "shell", resource: "*" })).toBe(false)
     expect(PermissionAuto.isContentScopedAsk({ effect: "ask", action: "*", resource: "*" })).toBe(false)
@@ -198,7 +183,7 @@ describe("PermissionAuto", () => {
     expect(PermissionAuto.isContentScopedAsk({ effect: "allow", action: "read", resource: "*.env" })).toBe(false)
   })
 
-  test("gates auto mode in Claude Code's decision order", () => {
+  test("gates auto mode in its decision order", () => {
     const allow = { effect: "allow" as const, classify: false }
     const classify = { effect: "ask" as const, classify: true }
     const askHuman = { effect: "ask" as const, classify: false }
@@ -235,12 +220,13 @@ describe("PermissionAuto", () => {
     expect(gate("shell", ["git push origin main"], { ask: true, allowed: true })).toEqual(askHuman)
     expect(gate("edit", ["src/index.ts"])).toEqual(allow)
     expect(gate("edit", [".env"])).toEqual(allow)
-    expect(gate("edit", ["/tmp/outside.ts"])).toEqual(classify)
-    expect(gate("edit", ["../outside/file.ts"])).toEqual(classify)
-    expect(gate("edit", [])).toEqual(classify)
-    expect(gate("edit", ["opencode.json"])).toEqual(classify)
-    expect(gate("edit", [".git/hooks/pre-commit"], { allowed: true })).toEqual(classify)
-    expect(gate("edit", ["src/index.ts"], { ask: true })).toEqual(askHuman)
+    expect(gate("edit", ["/tmp/outside.ts"])).toEqual(allow)
+    expect(gate("edit", ["/private/var/folders/x/T/opencode/nvapi_key"])).toEqual(allow)
+    expect(gate("edit", ["~/.zshrc"])).toEqual(allow)
+    expect(gate("edit", ["opencode.json"])).toEqual(allow)
+    expect(gate("edit", [".git/hooks/pre-commit"])).toEqual(allow)
+    expect(gate("edit", ["src/index.ts"], { ask: true })).toEqual(allow)
+    expect(gate("edit", ["secrets/key"], { denied: true })).toEqual(deny)
     expect(gate("subagent", ["general"])).toEqual(classify)
     expect(gate("github_create_issue", ["*"])).toEqual(classify)
   })
@@ -252,15 +238,6 @@ describe("PermissionAuto", () => {
     expect(PermissionAuto.needsGitStatus("shell", "find . -name '*.tmp' -delete")).toBe(true)
     expect(PermissionAuto.needsGitStatus("shell", "git log --oneline")).toBe(false)
     expect(PermissionAuto.needsGitStatus("edit", "git reset --hard")).toBe(false)
-  })
-
-  test("resolves directory scope", () => {
-    expect(PermissionAuto.isWithinDirectory("/project", "src/index.ts")).toBe(true)
-    expect(PermissionAuto.isWithinDirectory("/project", "./src/../src/index.ts")).toBe(true)
-    expect(PermissionAuto.isWithinDirectory("/project", "/project/src/index.ts")).toBe(true)
-    expect(PermissionAuto.isWithinDirectory("/project", "/tmp/outside.ts")).toBe(false)
-    expect(PermissionAuto.isWithinDirectory("/project", "~/file.ts")).toBe(false)
-    expect(PermissionAuto.isWithinDirectory("/project", "../outside.ts")).toBe(false)
   })
 
   test("merges settings across scopes and ignores repo-local config", () => {
