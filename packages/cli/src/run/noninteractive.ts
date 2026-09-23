@@ -136,7 +136,23 @@ export async function runNonInteractivePrompt(input: Input) {
     await input.client.permission.auto({ sessionID: input.sessionID, enabled: true }).catch(() => {})
   }
 
-  const replyPermission = async (request: { id: string; action: string; resources: ReadonlyArray<string>; message?: string }) => {
+  const family = new Map<string, boolean>([[input.sessionID, true]])
+  const inFamily = async (sessionID: string): Promise<boolean> => {
+    const known = family.get(sessionID)
+    if (known !== undefined) return known
+    const info = await input.client.session.get({ sessionID }).catch(() => undefined)
+    const result = info?.parentID ? await inFamily(info.parentID) : false
+    family.set(sessionID, result)
+    return result
+  }
+
+  const replyPermission = async (request: {
+    id: string
+    sessionID: string
+    action: string
+    resources: ReadonlyArray<string>
+    message?: string
+  }) => {
     if (!input.auto) {
       permissionRejected = true
       UI.println(
@@ -145,20 +161,24 @@ export async function runNonInteractivePrompt(input: Input) {
           `permission requested: ${request.action} (${request.resources.join(", ")}); auto-rejecting`,
       )
       await input.client.permission
-        .reply({ sessionID: input.sessionID, requestID: request.id, decision: "reject" })
+        .reply({ sessionID: request.sessionID, requestID: request.id, decision: "reject" })
         .catch(() => {})
       await input.client.session.interrupt({ sessionID: input.sessionID }).catch(() => {})
       return
     }
-    permissionRejected = true
     UI.println(
       UI.Style.TEXT_WARNING_BOLD + "!",
-      UI.Style.TEXT_NORMAL + `auto mode paused: ${request.message ?? "needs your review"}`,
+      UI.Style.TEXT_NORMAL +
+        `auto mode denied ${request.action} (${request.resources.join(", ")}): ${request.message ?? "needs human approval"}`,
     )
     await input.client.permission
-      .reply({ sessionID: input.sessionID, requestID: request.id, decision: "reject" })
+      .reply({
+        sessionID: request.sessionID,
+        requestID: request.id,
+        decision: "reject",
+        message: `No one can approve this action in a non-interactive run${request.message ? ` (${request.message})` : ""}. Do not retry it; continue with any work that does not depend on it.`,
+      })
       .catch(() => {})
-    await input.client.session.interrupt({ sessionID: input.sessionID }).catch(() => {})
   }
 
   const cancelForm = async (request: Pick<FormRequest, "id" | "sessionID">) => {
@@ -185,14 +205,14 @@ export async function runNonInteractivePrompt(input: Input) {
       }
       const event = next.value
 
-      if (event.type === "permission.auto_denied" && submitted && event.data.sessionID === input.sessionID) {
+      if (event.type === "permission.auto_denied" && submitted && (await inFamily(event.data.sessionID))) {
         UI.println(
           UI.Style.TEXT_WARNING_BOLD + "!",
           UI.Style.TEXT_NORMAL + `blocked by classifier: ${event.data.reason}`,
         )
         continue
       }
-      if (event.type === "permission.asked" && submitted && event.data.sessionID === input.sessionID) {
+      if (event.type === "permission.asked" && submitted && (await inFamily(event.data.sessionID))) {
         await replyPermission(event.data)
         continue
       }

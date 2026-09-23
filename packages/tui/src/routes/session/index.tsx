@@ -373,7 +373,8 @@ export function Session(props: {
     event.on("permission.auto_denied", (denied) => {
       const target = denied.data.sessionID
       if (target !== route.sessionID && data.session.get(target)?.parentID !== route.sessionID) return
-      toast.show({ variant: "warning", message: `Blocked by classifier: ${denied.data.reason}` })
+      const label = denied.data.reason.match(/^\s*(\[[^\]]+\])/)?.[1] ?? denied.data.reason
+      toast.show({ variant: "warning", message: `${denied.data.action} denied by auto mode · ${label} · /denials` })
     }),
   )
   const editor = useEditorContext()
@@ -2870,7 +2871,7 @@ function InlineTool(props: {
       error()?.includes("rejected permission") ||
       error()?.includes("specified a rule") ||
       error()?.includes("user dismissed") ||
-      error()?.includes("Blocked by classifier") ||
+      error()?.includes("denied by the OpenCode auto mode classifier") ||
       error()?.includes("permission.auto_denied"),
   )
 

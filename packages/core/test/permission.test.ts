@@ -262,7 +262,7 @@ describe("Permission", () => {
     }),
   )
 
-  it.effect("routes consequential tools through auto mode while allowing all reads", () =>
+  it.effect("routes consequential tools through auto mode while allowing every read", () =>
     Effect.gen(function* () {
       yield* setup([
         { action: "*", resource: "*", effect: "allow" },
@@ -334,6 +334,16 @@ describe("Permission", () => {
       })
       expect(
         yield* service.ask(
+          assertion({ id: Permission.ID.create("per_auto_config"), action: "edit", resources: ["opencode.json"] }),
+        ),
+      ).toMatchObject({ effect: "ask" })
+      expect(
+        yield* service.ask(
+          assertion({ id: Permission.ID.create("per_auto_hook"), action: "edit", resources: [".git/hooks/pre-commit"] }),
+        ),
+      ).toMatchObject({ effect: "ask" })
+      expect(
+        yield* service.ask(
           assertion({ id: Permission.ID.create("per_auto_subagent"), action: "subagent", resources: ["general"] }),
         ),
       ).toMatchObject({
@@ -352,8 +362,8 @@ describe("Permission", () => {
   it.effect("classifies blanket shell ask and still honors a narrow shell allow", () =>
     Effect.gen(function* () {
       yield* setup([
-        { action: "shell", resource: "cat *", effect: "allow" },
         { action: "shell", resource: "*", effect: "ask" },
+        { action: "shell", resource: "cat *", effect: "allow" },
       ])
       const autostate = yield* PermissionAutoState.Service
       const classified: string[] = []
@@ -382,8 +392,8 @@ describe("Permission", () => {
       const service = yield* Permission.Service
       const error = yield* service.assert(assertion({ action: "shell", resources: ["git push origin main"] })).pipe(Effect.flip)
       expect(error).toBeInstanceOf(Permission.CorrectedError)
-      expect(error.message).toContain("Blocked by classifier")
-      expect(error.message).toContain("Do not retry")
+      expect(error.message).toContain("denied by the OpenCode auto mode classifier")
+      expect(error.message).toContain("Production reads are blocked")
       expect(yield* service.list()).toEqual([])
     }),
   )
@@ -405,52 +415,40 @@ describe("Permission", () => {
     }),
   )
 
-  it.effect("auto-allows CLI help in auto mode without the classifier", () =>
+  it.effect("classifies help and read-only shell like any other command in auto mode", () =>
     Effect.gen(function* () {
       yield* setup([{ action: "shell", resource: "*", effect: "ask" }])
       const autostate = yield* PermissionAutoState.Service
-      let classified = 0
-      yield* autostate.bindClassifier(() => {
-        classified++
-        return Effect.succeed({ decision: "deny" as const, reason: "should not run" })
+      const classified: string[] = []
+      yield* autostate.bindClassifier((request) => {
+        classified.push(request.resources.join(" "))
+        return Effect.succeed({ decision: "allow" as const, reason: "allowed by test classifier" })
       })
       yield* autostate.activate(Session.ID.make("ses_test"))
       const service = yield* Permission.Service
-      yield* service.assert(
-        assertion({
-          action: "shell",
-          resources: [
-            'npx wrangler --help 2>&1 | head -n 80; echo "==="; npx wrangler workers --help 2>&1 | head -n 60',
-          ],
-        }),
-      )
-      expect(classified).toBe(0)
+      yield* service.assert(assertion({ action: "shell", resources: ["npx wrangler --help"] }))
+      yield* service.assert(assertion({ action: "shell", resources: ["echo hi > ~/.zshrc"] }))
+      yield* service.assert(assertion({ action: "shell", resources: ["kubectl get pods"] }))
+      expect(classified).toEqual(["npx wrangler --help", "echo hi > ~/.zshrc", "kubectl get pods"])
       expect(yield* service.list()).toEqual([])
     }),
   )
 
-  it.effect("auto-allows read-only shell in auto mode without the classifier", () =>
+  it.effect("sends critical-path removals to the classifier even when an allow rule matches", () =>
     Effect.gen(function* () {
-      yield* setup([{ action: "shell", resource: "*", effect: "ask" }])
+      yield* setup([{ action: "shell", resource: "rm *", effect: "allow" }])
       const autostate = yield* PermissionAutoState.Service
-      let classified = 0
-      yield* autostate.bindClassifier(() => {
-        classified++
-        return Effect.succeed({ decision: "deny" as const, reason: "should not run" })
+      const classified: string[] = []
+      yield* autostate.bindClassifier((request) => {
+        classified.push(request.resources.join(" "))
+        return Effect.succeed({ decision: "deny" as const, reason: "[Irreversible Local Destruction] removes home" })
       })
       yield* autostate.activate(Session.ID.make("ses_test"))
       const service = yield* Permission.Service
-      yield* service.assert(
-        assertion({
-          action: "shell",
-          resources: [
-            'npx wrangler d1 execute chairpe-prod --remote --command "SELECT s.name FROM salons s JOIN invoices i ON i.salon_id = s.id GROUP BY s.id"',
-          ],
-        }),
-      )
-      yield* service.assert(assertion({ action: "shell", resources: ["kubectl get pods"] }))
-      expect(classified).toBe(0)
-      expect(yield* service.list()).toEqual([])
+      yield* service.assert(assertion({ action: "shell", resources: ["rm build/out.txt"] }))
+      const error = yield* service.assert(assertion({ action: "shell", resources: ["rm -rf ~"] })).pipe(Effect.flip)
+      expect(error).toBeInstanceOf(Permission.CorrectedError)
+      expect(classified).toEqual(["rm -rf ~"])
     }),
   )
 

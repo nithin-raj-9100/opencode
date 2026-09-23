@@ -13,7 +13,7 @@ const AutoRules = Schema.Struct({
   allow: Schema.Array(Schema.String),
   soft_deny: Schema.Array(Schema.String),
   hard_deny: Schema.Array(Schema.String),
-  environment: Schema.String,
+  environment: Schema.Array(Schema.String),
   classifier: Schema.Literals(["both", "fast", "thinking"]),
   classify_all_shell: Schema.Boolean,
   prompt_injection_probe: Schema.Boolean,

@@ -136,6 +136,7 @@ export const Plugin = {
           action: name,
           resources: parsed.commands.map((command) => command.resource),
           save: parsed.commands.map((command) => command.save),
+          metadata: { command: invocation.command, workdir: target.resource },
           sessionID: context.sessionID,
           agent: context.agent,
           source,

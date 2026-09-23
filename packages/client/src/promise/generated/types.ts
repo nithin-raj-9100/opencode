@@ -319,7 +319,7 @@ export type PermissionAutoRules = {
   allow: Array<string>
   soft_deny: Array<string>
   hard_deny: Array<string>
-  environment: string
+  environment: Array<string>
   classifier: "both" | "fast" | "thinking"
   classify_all_shell: boolean
   prompt_injection_probe: boolean

@@ -8058,32 +8058,7 @@
                       "$ref": "#/components/schemas/Location.PublicRef"
                     },
                     "data": {
-                      "type": "object",
-                      "properties": {
-                        "allow": {
-                          "type": "array",
-                          "items": {
-                            "type": "string"
-                          }
-                        },
-                        "soft_deny": {
-                          "type": "array",
-                          "items": {
-                            "type": "string"
-                          }
-                        },
-                        "hard_deny": {
-                          "type": "array",
-                          "items": {
-                            "type": "string"
-                          }
-                        },
-                        "environment": {
-                          "type": "string"
-                        }
-                      },
-                      "required": ["allow", "soft_deny", "hard_deny", "environment"],
-                      "additionalProperties": false
+                      "$ref": "#/components/schemas/Permission.AutoRules"
                     }
                   },
                   "required": ["location", "data"],
@@ -8166,32 +8141,7 @@
                       "$ref": "#/components/schemas/Location.PublicRef"
                     },
                     "data": {
-                      "type": "object",
-                      "properties": {
-                        "allow": {
-                          "type": "array",
-                          "items": {
-                            "type": "string"
-                          }
-                        },
-                        "soft_deny": {
-                          "type": "array",
-                          "items": {
-                            "type": "string"
-                          }
-                        },
-                        "hard_deny": {
-                          "type": "array",
-                          "items": {
-                            "type": "string"
-                          }
-                        },
-                        "environment": {
-                          "type": "string"
-                        }
-                      },
-                      "required": ["allow", "soft_deny", "hard_deny", "environment"],
-                      "additionalProperties": false
+                      "$ref": "#/components/schemas/Permission.AutoRules"
                     }
                   },
                   "required": ["location", "data"],
@@ -8223,6 +8173,96 @@
         },
         "description": "Return the effective auto mode classifier rules with user settings applied.",
         "summary": "Get effective auto mode config"
+      }
+    },
+    "/api/permission/auto/critique": {
+      "post": {
+        "tags": ["permission"],
+        "operationId": "v2.permission.auto_critique",
+        "parameters": [
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "directory": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "required": false,
+            "style": "deepObject",
+            "explode": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "location": {
+                      "$ref": "#/components/schemas/Location.PublicRef"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "text": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["text"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["location", "data"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestErrorEncoded"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedErrorEncoded"
+                }
+              }
+            }
+          }
+        },
+        "description": "Review the custom auto mode classifier rules for clarity, conflicts, and false positives.",
+        "summary": "Critique auto mode rules"
       }
     },
     "/api/session/{sessionID}/permission/auto": {
@@ -8864,9 +8904,12 @@
                         },
                         "broken": {
                           "type": "boolean"
+                        },
+                        "disabled": {
+                          "type": "boolean"
                         }
                       },
-                      "required": ["enabled", "consecutive", "total", "broken"],
+                      "required": ["enabled", "consecutive", "total", "broken", "disabled"],
                       "additionalProperties": false
                     }
                   },
@@ -13811,7 +13854,17 @@
                 ]
               },
               "environment": {
-                "type": "string"
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
               },
               "block": {
                 "type": "array",
@@ -13845,6 +13898,9 @@
                 "enum": ["both", "fast", "thinking"]
               },
               "prompt_injection_probe": {
+                "type": "boolean"
+              },
+              "disableAutoMode": {
                 "type": "boolean"
               }
             },
@@ -14322,9 +14378,101 @@
                 "type": "null"
               }
             ]
+          },
+          "permission_auto": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Config.PermissionAutoEncoded"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
-        "required": ["shell"],
+        "additionalProperties": false
+      },
+      "Config.PermissionAutoEncoded": {
+        "type": "object",
+        "properties": {
+          "model": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[^/#]+\\/[^#]+(?:#[^#]+)?$"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "providerID": {
+                    "type": "string",
+                    "pattern": "^[^/#]+$"
+                  },
+                  "model": {
+                    "type": "string",
+                    "pattern": "^[^#]+$"
+                  },
+                  "variant": {
+                    "type": "string",
+                    "pattern": "^[^#]+$"
+                  }
+                },
+                "required": ["providerID", "model"],
+                "additionalProperties": false
+              }
+            ]
+          },
+          "environment": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "block": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "soft_deny": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "hard_deny": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "allow": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "classifyAllShell": {
+            "type": "boolean"
+          },
+          "classifier": {
+            "type": "string",
+            "enum": ["both", "fast", "thinking"]
+          },
+          "prompt_injection_probe": {
+            "type": "boolean"
+          },
+          "disableAutoMode": {
+            "type": "boolean"
+          }
+        },
         "additionalProperties": false
       },
       "Config.Plugin.EntryEncoded": {
@@ -16626,6 +16774,85 @@
       },
       "Money.USDPerMillionTokens": {
         "type": "number"
+      },
+      "Permission.AutoRules": {
+        "type": "object",
+        "properties": {
+          "allow": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "soft_deny": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "hard_deny": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "environment": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "classifier": {
+            "type": "string",
+            "enum": ["both", "fast", "thinking"]
+          },
+          "classify_all_shell": {
+            "type": "boolean"
+          },
+          "prompt_injection_probe": {
+            "type": "boolean"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "providerID": {
+                    "type": "string"
+                  },
+                  "model": {
+                    "type": "string"
+                  },
+                  "variant": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": ["providerID", "model"],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "allow",
+          "soft_deny",
+          "hard_deny",
+          "environment",
+          "classifier",
+          "classify_all_shell",
+          "prompt_injection_probe"
+        ],
+        "additionalProperties": false
       },
       "Permission.Effect": {
         "type": "string",

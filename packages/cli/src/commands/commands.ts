@@ -291,7 +291,13 @@ const Root = Spec.make(typeof OPENCODE_CLI_NAME === "string" ? OPENCODE_CLI_NAME
       commands: [
         Spec.make("defaults", {
           description: "Print the built-in auto mode rules",
-          params: ServerParams,
+          params: {
+            ...ServerParams,
+            label: Flag.string("label").pipe(
+              Flag.withDescription("Only print rules whose label starts with this text (case-insensitive)"),
+              Flag.optional,
+            ),
+          },
         }),
         Spec.make("config", {
           description: "Print the effective auto mode rules with settings applied",
