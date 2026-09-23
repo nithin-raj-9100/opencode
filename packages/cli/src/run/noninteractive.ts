@@ -189,15 +189,19 @@ export async function runNonInteractivePrompt(input: Input) {
       }
       return
     }
-    permissionRejected = true
     UI.println(
       UI.Style.TEXT_WARNING_BOLD + "!",
-      UI.Style.TEXT_NORMAL + `auto mode paused: ${request.message ?? "needs your review"}`,
+      UI.Style.TEXT_NORMAL +
+        `auto mode denied ${request.action} (${request.resources.join(", ")}): ${request.message ?? "needs human approval"}`,
     )
     await input.client.permission
-      .reply({ sessionID: request.sessionID, requestID: request.id, decision: "reject" })
+      .reply({
+        sessionID: request.sessionID,
+        requestID: request.id,
+        decision: "reject",
+        message: `No one can approve this action in a non-interactive run${request.message ? ` (${request.message})` : ""}. Do not retry it; continue with any work that does not depend on it.`,
+      })
       .catch(() => {})
-    await input.client.session.interrupt({ sessionID: input.sessionID }).catch(() => {})
   }
 
   const cancelForm = async (request: Pick<FormRequest, "id" | "sessionID" | "metadata">) => {
