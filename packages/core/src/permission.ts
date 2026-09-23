@@ -238,7 +238,9 @@ const layer = Layer.effect(
               action: input.action,
               resources: input.resources,
               directory: location.directory,
-              denied: winners.some((rule) => rule.effect === "deny"),
+              // Configured deny rules always win in auto mode. Saved approvals
+              // are user-granted allows and never override an explicit deny.
+              denied: denied(input, configuredForEval),
               contentScopedAsk: winners.some((rule) =>
                 PermissionAuto.isContentScopedAsk({
                   effect: rule.effect,
