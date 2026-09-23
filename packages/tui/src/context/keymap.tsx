@@ -275,9 +275,9 @@ function createLayer(input: () => KeymapLayer) {
           ...(command.group === undefined ? {} : { group: command.group }),
         })),
         ...grouped.named.flatMap((command) => {
-          if (command.bind === false) return []
           const configured = value.config.keybinds.get(command.id)
           if (configured.length) return configured
+          if (command.bind === false) return []
           if (typeof command.bind !== "string") return []
           return [{ key: command.bind, cmd: command.id }]
         }),

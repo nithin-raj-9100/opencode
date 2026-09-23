@@ -19,8 +19,8 @@ import type { Skill } from "@opencode/schema/skill"
 import type { FileDiff } from "@opencode/schema/file-diff"
 import type { InstructionEntry } from "@opencode/schema/instruction-entry"
 import type { Schema } from "effect"
-import type { Event } from "@opencode/schema/event"
 import type { SessionGoal } from "@opencode/schema/session-goal"
+import type { Event } from "@opencode/schema/event"
 import type { EventLog } from "@opencode/schema/event-log"
 import type { Shell } from "@opencode/schema/shell"
 import type { Provider } from "@opencode/schema/provider"
@@ -1852,6 +1852,12 @@ export type PermissionAutoDefaultsOutput = {
     readonly soft_deny: ReadonlyArray<string>
     readonly hard_deny: ReadonlyArray<string>
     readonly environment: string
+    readonly classifier: "both" | "fast" | "thinking"
+    readonly classify_all_shell: boolean
+    readonly prompt_injection_probe: boolean
+    readonly model?:
+      | { readonly providerID: string; readonly model: string; readonly variant?: string | undefined }
+      | undefined
   }
 }
 export type PermissionAutoDefaultsOperation<E = never> = (
@@ -1866,11 +1872,28 @@ export type PermissionAutoConfigOutput = {
     readonly soft_deny: ReadonlyArray<string>
     readonly hard_deny: ReadonlyArray<string>
     readonly environment: string
+    readonly classifier: "both" | "fast" | "thinking"
+    readonly classify_all_shell: boolean
+    readonly prompt_injection_probe: boolean
+    readonly model?:
+      | { readonly providerID: string; readonly model: string; readonly variant?: string | undefined }
+      | undefined
   }
 }
 export type PermissionAutoConfigOperation<E = never> = (
   input?: PermissionAutoConfigInput,
 ) => Effect.Effect<PermissionAutoConfigOutput, E>
+
+export type PermissionAutoCritiqueInput = {
+  readonly location?: { readonly directory?: string | undefined } | undefined
+}
+export type PermissionAutoCritiqueOutput = {
+  readonly location: Location.PublicRef
+  readonly data: { readonly text: string }
+}
+export type PermissionAutoCritiqueOperation<E = never> = (
+  input?: PermissionAutoCritiqueInput,
+) => Effect.Effect<PermissionAutoCritiqueOutput, E>
 
 export type PermissionAutoInput = {
   readonly sessionID: Session.ID
@@ -1926,6 +1949,7 @@ export type PermissionAutoStatusOutput = {
   readonly consecutive: number
   readonly total: number
   readonly broken: boolean
+  readonly disabled: boolean
 }
 export type PermissionAutoStatusOperation<E = never> = (
   input: PermissionAutoStatusInput,
@@ -1947,6 +1971,7 @@ export interface PermissionApi<E = never> {
   readonly saved: { readonly list: PermissionSavedListOperation<E>; readonly remove: PermissionSavedRemoveOperation<E> }
   readonly auto_defaults: PermissionAutoDefaultsOperation<E>
   readonly auto_config: PermissionAutoConfigOperation<E>
+  readonly auto_critique: PermissionAutoCritiqueOperation<E>
   readonly auto: PermissionAutoOperation<E>
   readonly create: PermissionCreateOperation<E>
   readonly list: PermissionListOperation<E>
@@ -2448,9 +2473,32 @@ export type ConfigShellsOutput = ReadonlyArray<{
 }>
 export type ConfigShellsOperation<E = never> = () => Effect.Effect<ConfigShellsOutput, E>
 
-export type ConfigUpdateInput = { readonly shell: string | null }
+export type ConfigUpdateInput = {
+  readonly shell?: string | null | undefined
+  readonly permission_auto?:
+    | {
+        readonly model?:
+          | {
+              readonly providerID: Provider.ID
+              readonly model: Model.ID
+              readonly variant?: Model.VariantID | undefined
+            }
+          | undefined
+        readonly environment?: ReadonlyArray<string> | string | undefined
+        readonly block?: ReadonlyArray<string> | undefined
+        readonly soft_deny?: ReadonlyArray<string> | undefined
+        readonly hard_deny?: ReadonlyArray<string> | undefined
+        readonly allow?: ReadonlyArray<string> | undefined
+        readonly classifyAllShell?: boolean | undefined
+        readonly classifier?: "both" | "fast" | "thinking" | undefined
+        readonly prompt_injection_probe?: boolean | undefined
+        readonly disableAutoMode?: boolean | undefined
+      }
+    | null
+    | undefined
+}
 export type ConfigUpdateOutput = void
-export type ConfigUpdateOperation<E = never> = (input: ConfigUpdateInput) => Effect.Effect<ConfigUpdateOutput, E>
+export type ConfigUpdateOperation<E = never> = (input?: ConfigUpdateInput) => Effect.Effect<ConfigUpdateOutput, E>
 
 export interface ConfigApi<E = never> {
   readonly get: ConfigGetOperation<E>
