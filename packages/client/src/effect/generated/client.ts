@@ -199,6 +199,8 @@ import type {
   PermissionAutoDefaultsOutput,
   PermissionAutoConfigInput,
   PermissionAutoConfigOutput,
+  PermissionAutoCritiqueInput,
+  PermissionAutoCritiqueOutput,
   PermissionAutoInput,
   PermissionAutoOutput,
   PermissionCreateInput,
@@ -1353,6 +1355,11 @@ const EndpointPermissionAutoConfig = (raw: RawClient["server.permission"]) => (i
     raw["permission.auto.config"]({ query: { location: input?.["location"] } }).pipe(Effect.mapError(mapClientError)),
   )
 
+const EndpointPermissionAutoCritique = (raw: RawClient["server.permission"]) => (input?: PermissionAutoCritiqueInput) =>
+  preserveEffect<PermissionAutoCritiqueOutput>()(
+    raw["permission.auto.critique"]({ query: { location: input?.["location"] } }).pipe(Effect.mapError(mapClientError)),
+  )
+
 const EndpointPermissionAuto = (raw: RawClient["server.permission"]) => (input: PermissionAutoInput) =>
   preserveEffect<PermissionAutoOutput>()(
     raw["session.permission.auto"]({
@@ -1438,6 +1445,7 @@ const adaptGroupPermission = (raw: RawClient["server.permission"]) => ({
   },
   auto_defaults: EndpointPermissionAutoDefaults(raw),
   auto_config: EndpointPermissionAutoConfig(raw),
+  auto_critique: EndpointPermissionAutoCritique(raw),
   auto: EndpointPermissionAuto(raw),
   create: EndpointPermissionCreate(raw),
   list: EndpointPermissionList(raw),
@@ -2029,9 +2037,11 @@ const adaptGroupConfig = (raw: RawClient["server.config"]) => ({
   shells: EndpointConfigShells(raw),
 })
 
-const EndpointExperimentalConfigUpdate = (raw: RawClient["server.config"]) => (input: ExperimentalConfigUpdateInput) =>
+const EndpointExperimentalConfigUpdate = (raw: RawClient["server.config"]) => (input?: ExperimentalConfigUpdateInput) =>
   preserveEffect<ExperimentalConfigUpdateOutput>()(
-    raw["config.update"]({ payload: { shell: input["shell"] } }).pipe(Effect.mapError(mapClientError)),
+    raw["config.update"]({ payload: { shell: input?.["shell"], permission_auto: input?.["permission_auto"] } }).pipe(
+      Effect.mapError(mapClientError),
+    ),
   )
 
 const adaptGroupExperimentalConfig = (raw: RawClient["server.config"]) => ({

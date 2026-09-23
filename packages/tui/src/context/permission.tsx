@@ -24,6 +24,12 @@ export const { use: usePermission, provider: PermissionProvider } = createSimple
         const current: PermissionMode = store.override ?? (args.auto ? "auto" : config.data.session.permissions)
         setStore("override", current === "auto" ? "prompt" : "auto")
       },
+      cycle() {
+        const current: PermissionMode = store.override ?? (args.auto ? "auto" : config.data.session.permissions)
+        const next: PermissionMode =
+          current === "prompt" ? "autoaccept" : current === "autoaccept" ? "auto" : "prompt"
+        setStore("override", next)
+      },
     }
   },
 })
