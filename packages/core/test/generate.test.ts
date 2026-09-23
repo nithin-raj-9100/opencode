@@ -3,6 +3,7 @@ import { LanguageModel } from "@opencode/ai"
 import { OpenAIChat } from "@opencode/ai/protocols"
 import { TestLLM } from "@opencode/ai/testing"
 import { AISDK } from "@opencode/core/aisdk"
+import { App } from "@opencode/core/app"
 import { Generate } from "@opencode/core/generate"
 import { Integration } from "@opencode/core/integration"
 import { ModelResolver } from "@opencode/core/model-resolver"
@@ -60,7 +61,7 @@ const aisdk = Layer.mock(AISDK.Service, {
 const client = TestLLM.testLayer({ fallback: TestLLM.text("OK", "generate") })
 
 const resolver = ModelResolver.layer.pipe(Layer.provide(Layer.mergeAll(providers, models, integrations, npm, aisdk)))
-const it = testEffect(Generate.layer.pipe(Layer.provide(Layer.merge(resolver, client))))
+const it = testEffect(Generate.layer.pipe(Layer.provideMerge(Layer.merge(resolver, client))))
 const resolverIt = testEffect(resolver)
 
 it.effect("loads dynamic AI SDK models", () =>
@@ -72,6 +73,28 @@ it.effect("loads dynamic AI SDK models", () =>
     })
 
     expect(result).toBe("OK")
+  }),
+)
+
+it.effect("sends session routing headers when a session is given", () =>
+  Effect.gen(function* () {
+    const generate = yield* Generate.Service
+    const llm = yield* TestLLM.Test
+    yield* generate.text({
+      prompt: "Return exactly OK",
+      model: Ref.make({ providerID: selected.providerID, id: selected.id }),
+      session: { id: "ses_child", projectID: "prj_test", parentID: "ses_parent" },
+    })
+
+    expect((yield* llm.requests()).at(-1)?.http?.headers).toEqual({
+      "x-session-affinity": "ses_child",
+      "X-Session-Id": "ses_child",
+      "x-parent-session-id": "ses_parent",
+      "User-Agent": App.useragent(App.make()),
+      "x-opencode-project": "prj_test",
+      "x-opencode-session": "ses_child",
+      "x-opencode-client": "opencode",
+    })
   }),
 )
 
