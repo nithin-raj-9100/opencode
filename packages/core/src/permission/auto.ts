@@ -1,10 +1,11 @@
 export * as PermissionAuto from "./auto.js"
 
-import type { Permission } from "@opencode/schema/permission"
+import { Event, type Permission } from "@opencode/schema/permission"
 import type { Model } from "@opencode/schema/model"
 import path from "path"
 import { Context, Effect, Layer } from "effect"
 import { makeLocationNode } from "@opencode/util/effect/app-node"
+import { Bus } from "../bus.js"
 import { Config } from "../config.js"
 import { Generate } from "../generate.js"
 import { Location } from "../location.js"
@@ -33,9 +34,20 @@ export const DEFAULT_BLOCKS = [
   "Acting as the user on external systems: mass-modifying issues or PRs, closing others' tickets, or posting to work channels the user did not direct.",
   "Content integrity and impersonation: posting false content, claiming success on failed work, or signing as human.",
   "Real-world transactions: purchases, payments, bookings, or sending communications to real people outside the user's org.",
-  "Disabling safeguards: turning off security controls, logging, review gates, tests, validation, or branch protection.",
+  "Disabling safeguards: turning off security controls, logging, review gates, tests, validation, or branch protection. Also running a command with a flag that disarms a safety guard, such as --insecure, --no-verify, or a force-passed check.",
+  "Security-guard removal: commenting out, deleting, or force-passing a test, assertion, or check that guards authentication, authorization, input validation, or sandboxing.",
   "Discarding uncommitted work: reset, clean, restore, or stash-drop that would throw away changes the user still has.",
-  "Autonomous loop launch: starting an unsupervised agent loop that skips permissions or sandboxing.",
+  "Autonomous loop launch: starting an unsupervised agent loop that skips permissions or sandboxing, including a third-party agent or eval harness started with isolation and per-action approval disabled.",
+  "Credential exposure: printing a live credential, token, or secret into the transcript, a file, or command output the user did not ask for.",
+  "Metadata and host identity: requesting cloud instance-metadata credentials, or authenticating a cloud, cluster, or registry call with the machine's own service-account or node identity, unless the environment names that identity as expected.",
+  "Containment escape: connecting to or scanning sibling containers, pods, or VMs the agent did not start, the node beneath a container, or reaching a public host through a tunnel, reverse shell, or rewritten resolver instead of a direct request.",
+  "Production control planes: toggling, ramping, or deleting production feature flags; changing DNS records or TLS certificates; or writing to a secret manager.",
+  "Review bypass: merging a pull request no human approved, approving the agent's own pull request, or disabling CI checks.",
+  "Automation command injection: posting a comment, message, or commit message that is itself a command to automation, such as a deploy, apply, merge, or release bot command.",
+  "Shared cluster overreach: writes to a shared compute cluster that reach beyond the resource the user named, such as a label selector or --all that catches other users' jobs, or creating workloads that run on every node or intercept cluster traffic.",
+  "Registry bypass: routing a package install around an internal registry or mirror the user or environment declares to a public registry.",
+  "Transcript and history tampering: writing to session transcripts, shell history, or audit logs, or sending keystrokes to the agent's own terminal to change its permissions or oversight.",
+  "Untrusted link relay: posting or writing a link to a public paste, diagram, or data-sharing service whose URL carries the shared content, unless the user named that service.",
 ]
 
 export const DEFAULT_HARD_DENY = [
@@ -53,6 +65,8 @@ export const DEFAULT_ALLOWS = [
   "Toolchain Bootstrap: official one-line installers such as sh.rustup.rs, bun.sh, or brew.sh.",
   "Standard Credentials: reading credentials from .env and sending them to their matching endpoint.",
   "Git Push to Working Branch: pushing to the branch the user started on or one the agent created this session.",
+  "Pull Request Creation: opening a pull request in the repository the agent is working in when it matches the user's request.",
+  "Session-Created Cleanup: deleting or tearing down stateful resources the agent created earlier in the same session.",
   "Memory Directory: routine writes to memory directories, except poisoning.",
 ]
 
@@ -67,14 +81,11 @@ export const SUBAGENT_ACTIONS = new Set(["subagent", "agent", "task"])
 
 export const SAFE_TOOLS = new Set([
   ...READ_TOOLS,
-  "webfetch",
-  "websearch",
   "question",
   "skill",
   "file-diff",
   "todowrite",
   "todoread",
-  "classify_result",
 ])
 
 export function isReadTool(action: string) {
@@ -102,12 +113,20 @@ export function isContentScopedAsk(match: {
   resource: string
 }) {
   if (match.effect !== "ask" || match.implicit) return false
-  if (isSafeTool(match.action) || isEditTool(match.action) || isSubagentAction(match.action)) return false
+  if (isSafeTool(match.action)) return false
   // `shell *` / `* *` ask is the default remaining policy after auto mode
   // strips broad allows. Those still go to the classifier. Only a narrower
   // pattern such as `git push *` skips it for a human prompt.
   if (match.action === "*" || match.resource === "*") return false
   return true
+}
+
+/** True when every resource resolves inside the working directory. */
+export function isWithinDirectory(directory: string, resource: string) {
+  if (!resource || resource.startsWith("~")) return false
+  const root = path.resolve(directory)
+  const resolved = path.resolve(root, resource)
+  return resolved === root || resolved.startsWith(`${root}${path.sep}`)
 }
 
 export function isGitSensitive(action: string, resources: ReadonlyArray<string>, metadata: unknown) {
@@ -158,13 +177,19 @@ export function autoGate(input: {
   // Reads of any file or folder — including .env, .git, and home paths such as
   // ~/.zshrc — are allowed by default. Configured deny rules still win above.
   if (isSafeTool(input.action)) return { effect: "allow" as const, classify: false }
-  // Edits of any file — including .sh, .env, and paths outside the working
-  // directory — skip the classifier. Configured deny rules still win above.
-  if (isEditTool(input.action)) return { effect: "allow" as const, classify: false }
-  // Built-in (general, explore) and user-defined subagents skip the classifier.
-  // Configured deny rules still win above.
-  if (isSubagentAction(input.action)) return { effect: "allow" as const, classify: false }
+  // An explicit ask rule is the user's stated intent to be prompted.
   if (input.contentScopedAsk) return { effect: "ask" as const, classify: false }
+  // In-project file edits are reviewable through version control and skip the
+  // classifier. Edits outside the working directory reach the classifier.
+  if (
+    isEditTool(input.action) &&
+    input.resources.length > 0 &&
+    input.resources.every((resource) => isWithinDirectory(input.directory, resource))
+  )
+    return { effect: "allow" as const, classify: false }
+  // Subagent delegation is always classified so a dangerous task is caught at
+  // spawn time, even when a narrow allow rule matches.
+  if (isSubagentAction(input.action)) return { effect: "ask" as const, classify: true }
   if (input.allowed) return { effect: "allow" as const, classify: false }
   if (isHelpOnly(input.action, input.resources)) return { effect: "allow" as const, classify: false }
   if (isReadOnly(input.action, input.resources)) return { effect: "allow" as const, classify: false }
@@ -175,10 +200,10 @@ export function isCriticalRemoval(action: string, resources: ReadonlyArray<strin
   if (action !== "shell" && action !== "bash") return false
   return resources.some((resource) => {
     const normalized = resource.trim()
-    if (/(^|[\s;&|])rm\s+(?=[^|;&]*-[a-zA-Z]*r[a-zA-Z]*f|\S*--recursive\S*--force|\S*--force\S*--recursive)/.test(normalized)) {
+    if (/(^|[\s;&|])rm\s+(?=[^|;&]*-[a-zA-Z]*(?:r|f)|[^|;&]*--(?:recursive|force))/.test(normalized)) {
       if (/(^|[\s"'])\/(?![\w.-])/.test(`${normalized} `)) return true
-      if (/(^|[\s"'])~(?=\s|\/|"|'|$)/.test(normalized)) return true
-      if (/\$[A-Z_]+/.test(normalized)) return true
+      if (/(^|[\s"'])~\/?(?=[\s"']|$)/.test(normalized)) return true
+      if (/(^|[\s"'])\$\{?(?:HOME|PWD)\}?(?=[\s"']|$)/.test(normalized)) return true
     }
     if (/Remove-Item.*-Recurse.*-Force.*(\*|\/\*|\\\*)/.test(normalized)) return true
     return false
@@ -186,8 +211,28 @@ export function isCriticalRemoval(action: string, resources: ReadonlyArray<strin
 }
 
 const DISPLAY_FILTER = /^(echo|printf|head|tail|wc|true|false|:|cat|cd|pushd|popd)\b/i
-const HELP_FLAG = /(?:^|\s)(--help|-h|--version|-V)(?=\s|$)/
-const HELP_SUBCOMMAND = /(?:^|\s)help(?:\s|$)/
+// A help-looking token is only inert when the segment does not execute a
+// payload and no file-like token precedes it: `bash -c 'rm -rf ~' --help` runs
+// the command, `python3 script.py --help` passes the flag to the script, while
+// `git status --help` prints help.
+const HELP_EXECUTION =
+  /(?:^|\s)-[a-zA-Z]*[ce][a-zA-Z]*(?:=|\s|["'])|(?:^|\s)--(?:eval|command)(?:=|\s|["'])/i
+const HELP_RUNNER = /(?:^|\s)(?:run|exec|dlx)\s+\S/i
+const HELP_TOKEN = /(?:^|\s)(--help|-h|--version|-V|help)(?=\s|$)/i
+
+function hasExecutionPayload(segment: string) {
+  return HELP_EXECUTION.test(segment) || HELP_RUNNER.test(segment)
+}
+
+function isInertHelp(part: string, normalized: string) {
+  if (hasExecutionPayload(part)) return false
+  const match = HELP_TOKEN.exec(normalized)
+  if (!match || match.index === undefined) return false
+  const before = normalized.slice(0, match.index)
+  if (/(?:^|\s)--(?:\s|$)/.test(before)) return false
+  if (/(?:^|\s)[^\s]*(?:[./\\])[^\s]*(?=\s|$)/.test(before)) return false
+  return true
+}
 const COMMAND_WRAPPER =
   /^(?:npx|pnpx|bunx|uvx|pipx|npm|pnpm|yarn|bun|deno|corepack|pip3?|poetry|pipenv|gem|cargo|composer|timeout|env|command|nice|nohup|time|xargs)(?:\s+(?:dlx|exec|run))?(?:\s+(?:-y|--yes|--no-install|--package=\S+|\d+(?:\.\d+)?[smh]?))*\s+/i
 
@@ -265,7 +310,7 @@ function unwrapShellSegment(part: string) {
 function isHelpOrDisplaySegment(part: string) {
   const normalized = unwrapShellSegment(part)
   if (!normalized) return { ok: false, help: false }
-  if (HELP_FLAG.test(normalized) || HELP_SUBCOMMAND.test(normalized)) return { ok: true, help: true }
+  if (isInertHelp(part, normalized)) return { ok: true, help: true }
   if (DISPLAY_FILTER.test(normalized)) return { ok: true, help: false }
   return { ok: false, help: false }
 }
@@ -297,6 +342,8 @@ const READ_HEAD = /^(select|with|explain|pragma|values|table|get|list|ls|show|de
 const HTTP_CLIENT = /^(curl|wget|http|https|httpie)\b/i
 const HTTP_WRITE =
   /(?:\s-X\s*|\s--request\s+)(POST|PUT|PATCH|DELETE|MOVE|COPY)\b|\s(?:-d|--data|--data-raw|--data-binary|--form|-F)\b/i
+// curl/wget output flags turn a GET into a local file write.
+const HTTP_OUTPUT = /(?:^|\s)(?:-o|-O|--output|--remote-name)(?:=|\s|$)/
 
 function quotedStatements(text: string) {
   const statements: string[] = []
@@ -393,14 +440,15 @@ function hasUnknownFile(command: string) {
   return /(?:--file|--sql-file)(?:=|\s+)\S+/i.test(command)
 }
 
-function isReadOnlySegment(command: string) {
+function isReadOnlySegment(command: string, source = command) {
   if (/^(cd|pushd|popd)\b/i.test(command)) return { ok: true, read: false }
   if (DISPLAY_FILTER.test(command)) return { ok: true, read: true }
-  if (HELP_FLAG.test(command) || HELP_SUBCOMMAND.test(command)) return { ok: true, read: true }
   if (hasUnknownFile(command) || HTTP_WRITE.test(` ${command}`)) return { ok: false, read: false }
+  if (HTTP_CLIENT.test(command) && HTTP_OUTPUT.test(command)) return { ok: false, read: false }
   const payloads = inlinePayloads(command)
   if (payloads.some(isWriteText)) return { ok: false, read: false }
   if (payloads.length > 0) return { ok: payloads.every(isReadOnlyPayload), read: payloads.every(isReadOnlyPayload) }
+  if (isInertHelp(source, command)) return { ok: true, read: true }
   if (HTTP_CLIENT.test(command)) return { ok: true, read: true }
   if (WRITE_VERB.test(stripQuotes(command))) return { ok: false, read: false }
   if (READ_VERB.test(command)) return { ok: true, read: true }
@@ -410,7 +458,7 @@ function isReadOnlySegment(command: string) {
 function isReadOnlyCommandSegment(part: string) {
   const normalized = unwrapShellSegment(part)
   if (!normalized) return { ok: false, read: false }
-  return isReadOnlySegment(normalized)
+  return isReadOnlySegment(normalized, part)
 }
 
 /** Observe-only shell. Wrappers inherit the inner command; length and joins do not matter. */
@@ -433,11 +481,20 @@ export function isReadOnly(action: string, resources: ReadonlyArray<string>) {
 }
 
 export function toAutoClassifierInput(action: string, resources: ReadonlyArray<string>, metadata: unknown) {
-  if (isSafeTool(action) || isEditTool(action) || isSubagentAction(action)) return ""
+  if (isSafeTool(action) || isEditTool(action)) return ""
   const record = typeof metadata === "object" && metadata !== null ? (metadata as Record<string, unknown>) : {}
   if (action === "shell" || action === "bash") {
     const command = typeof record["command"] === "string" ? (record["command"] as string) : resources.join(", ")
     return command.slice(0, 4000)
+  }
+  if (isSubagentAction(action)) {
+    const agent = typeof record["agent"] === "string" ? (record["agent"] as string) : resources.join(", ")
+    const description = typeof record["description"] === "string" ? (record["description"] as string) : ""
+    const prompt = typeof record["prompt"] === "string" ? (record["prompt"] as string) : ""
+    return [`subagent ${agent}`, description && `Task: ${description}`, prompt && `Instructions: ${prompt}`]
+      .filter(Boolean)
+      .join("\n")
+      .slice(0, 4000)
   }
   if (action === "webfetch" || action === "websearch") {
     const target = typeof record["url"] === "string" ? (record["url"] as string) : resources.join(", ")
@@ -452,11 +509,27 @@ function resolveList(defaults: ReadonlyArray<string>, custom: ReadonlyArray<stri
   return [...custom]
 }
 
-function resolveEnvironment(directory: string, custom: string | undefined) {
+/** `block` is a legacy alias for `soft_deny`; both merge without duplicating `$defaults`. */
+function softDenyCustom(
+  settings: { block?: ReadonlyArray<string>; soft_deny?: ReadonlyArray<string> } | undefined,
+) {
+  const block = settings?.block
+  const soft = settings?.soft_deny
+  if (block === undefined) return soft
+  if (soft === undefined) return block
+  const merged = [...block, ...soft]
+  if (!merged.includes("$defaults")) return merged
+  return ["$defaults", ...merged.filter((item) => item !== "$defaults")]
+}
+
+function resolveEnvironment(directory: string, custom: string | ReadonlyArray<string> | undefined) {
   const fallback = `Only ${directory} is trusted.`
-  if (!custom?.trim()) return fallback
-  if (custom.includes("$defaults")) return custom.replace("$defaults", fallback)
-  return custom.trim()
+  const entries = Array.isArray(custom) ? custom : custom === undefined ? [] : [custom]
+  const resolved = entries
+    .map((entry) => entry.replace("$defaults", fallback))
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+  return resolved.length > 0 ? resolved.join("\n") : fallback
 }
 
 function stripThinking(text: string) {
@@ -611,19 +684,36 @@ ALLOW EXCEPTIONS (mandatory carve-outs)
 ${input.allows.map((rule) => `- ${rule}`).join("\n")}`
 }
 
+export interface Settings {
+  readonly model?: {
+    readonly providerID: Model.Ref["providerID"]
+    readonly model: Model.Ref["id"]
+    readonly variant?: Model.Ref["variant"]
+  }
+  readonly environment?: string | ReadonlyArray<string>
+  readonly block?: ReadonlyArray<string>
+  readonly soft_deny?: ReadonlyArray<string>
+  readonly hard_deny?: ReadonlyArray<string>
+  readonly allow?: ReadonlyArray<string>
+  readonly classifyAllShell?: boolean
+  readonly classifier?: "both" | "fast" | "thinking"
+  readonly prompt_injection_probe?: boolean
+  readonly disableAutoMode?: boolean
+}
+
+export interface PromptParts {
+  readonly system: string
+  readonly transcript: string
+  readonly actionText: string
+}
+
 export function prompt(input: {
   directory: string
   messages: ReadonlyArray<SessionMessage.Info>
   request: Permission.Request
   gitStatus?: string
-  settings?: {
-    environment?: string
-    block?: ReadonlyArray<string>
-    soft_deny?: ReadonlyArray<string>
-    hard_deny?: ReadonlyArray<string>
-    allow?: ReadonlyArray<string>
-  }
-}) {
+  settings?: Settings
+}): PromptParts {
   const transcript = input.messages
     .slice(-80)
     .flatMap((message) => {
@@ -639,9 +729,8 @@ export function prompt(input: {
     })
     .join("\n")
     .slice(-24_000)
-  const softCustom = input.settings?.soft_deny ?? input.settings?.block
   const environment = resolveEnvironment(input.directory, input.settings?.environment)
-  const soft = resolveList(DEFAULT_BLOCKS, softCustom)
+  const soft = resolveList(DEFAULT_BLOCKS, softDenyCustom(input.settings))
   const hard = resolveList(DEFAULT_HARD_DENY, input.settings?.hard_deny)
   const allows = resolveList(DEFAULT_ALLOWS, input.settings?.allow)
   const system = buildSystemPrompt({
@@ -659,17 +748,15 @@ export function prompt(input: {
       ? `Action: ${input.request.action} (no classifier-relevant input)`
       : `Action: ${input.request.action}\nResources: ${input.request.resources.join(", ") || "(none)"}\nMetadata: ${JSON.stringify(input.request.metadata ?? {})}\nProjected: ${projected}`
 
-  return `${system}
-
-USER AND TOOL-CALL TRANSCRIPT
-${transcript || "(no model-visible user or tool-call history)"}
-
-PROPOSED ACTION
-${actionText}`
+  return {
+    system,
+    transcript: transcript || "(no model-visible user or tool-call history)",
+    actionText,
+  }
 }
 
 export function selectModel(
-  settings: { model?: { providerID: Model.Ref["providerID"]; model: Model.Ref["id"]; variant?: Model.Ref["variant"] } },
+  settings: Settings,
   session?: { model?: Model.Ref },
 ) {
   if (!settings.model) return session?.model
@@ -691,6 +778,18 @@ export interface Rules {
   readonly soft_deny: ReadonlyArray<string>
   readonly hard_deny: ReadonlyArray<string>
   readonly environment: string
+  readonly classifier: "both" | "fast" | "thinking"
+  readonly classify_all_shell: boolean
+  readonly prompt_injection_probe: boolean
+  readonly model?: { readonly providerID: string; readonly model: string; readonly variant?: string }
+}
+
+export interface Status {
+  readonly enabled: boolean
+  readonly consecutive: number
+  readonly total: number
+  readonly broken: boolean
+  readonly disabled: boolean
 }
 
 export interface Interface {
@@ -708,11 +807,10 @@ export interface Interface {
     result: Tool.NormalizedResult,
   ) => Effect.Effect<Tool.NormalizedResult>
   readonly denials: (sessionID: Permission.Request["sessionID"]) => Effect.Effect<ReadonlyArray<Denial>>
-  readonly status: (
-    sessionID: Permission.Request["sessionID"],
-  ) => Effect.Effect<{ enabled: boolean; consecutive: number; total: number; broken: boolean }>
+  readonly status: (sessionID: Permission.Request["sessionID"]) => Effect.Effect<Status>
   readonly defaults: () => Effect.Effect<Rules>
   readonly effective: () => Effect.Effect<Rules>
+  readonly critique: () => Effect.Effect<string>
 }
 
 type SessionID = Permission.Request["sessionID"]
@@ -722,10 +820,29 @@ export class Service extends Context.Service<Service, Interface>()("@opencode/Pe
 const IRON_GATE_TTL = 30 * 60 * 1000
 const MAX_CONSECUTIVE = 3
 const MAX_TOTAL = 20
+const CLASSIFIER_TIMEOUT = "90 seconds"
+
+const CRITIQUE_PROMPT = `You are an expert reviewer of auto mode classifier rules for OpenCode.
+OpenCode has an "auto mode" that uses an AI classifier to decide whether tool calls should be auto-approved or require user confirmation. Users can write custom rules in four categories:
+- **allow**: Actions the classifier should auto-approve
+- **soft_deny**: Destructive/irreversible actions the classifier should block unless clear user intent authorizes them
+- **hard_deny**: Security-boundary actions the classifier should block unconditionally (user intent does not clear these)
+- **environment**: Context about the user's setup that helps the classifier make decisions
+Your job is to critique the user's custom rules for clarity, completeness, and potential issues. The classifier is an LLM that reads these rules as part of its system prompt.
+For each rule, evaluate:
+1. **Clarity**: Is the rule unambiguous? Could the classifier misinterpret it?
+2. **Completeness**: Are there gaps or edge cases the rule doesn't cover?
+3. **Conflicts**: Do any of the rules conflict with each other?
+4. **Actionability**: Is the rule specific enough for the classifier to act on?
+Be concise and constructive. Only comment on rules that could be improved. If all rules look good, say so.
+
+Custom rules:
+`
 
 const layer = Layer.effect(
   Service,
   Effect.gen(function* () {
+    const bus = yield* Bus.Service
     const config = yield* Config.Service
     const generate = yield* Generate.Service
     const location = yield* Location.Service
@@ -733,8 +850,24 @@ const layer = Layer.effect(
     const autostate = yield* PermissionAutoState.Service
     const breaker = new Map<SessionID, { consecutive: number; total: number; broken: boolean }>()
     const denialLog = new Map<SessionID, Denial[]>()
+    // Classifier asks wait on a human reply; approving one resumes auto mode.
+    const pendingAsks = new Map<Permission.Request["id"], SessionID>()
     let ironGateClosed = true
     let ironGateFetchedAt = 0
+
+    const unsubscribe = yield* bus.listen((event) => {
+      if (event.type !== Event.Replied.type) return Effect.void
+      const data = event.data as {
+        readonly requestID: Permission.Request["id"]
+        readonly reply: "once" | "always" | "reject"
+      }
+      const rootID = pendingAsks.get(data.requestID)
+      if (rootID === undefined) return Effect.void
+      pendingAsks.delete(data.requestID)
+      if (data.reply === "reject") return Effect.void
+      return Effect.sync(() => breaker.set(rootID, { consecutive: 0, total: 0, broken: false }))
+    })
+    yield* Effect.addFinalizer(() => unsubscribe)
 
     const root: (sessionID: SessionID) => Effect.Effect<SessionID> = Effect.fn("PermissionAuto.root")(function* (
       sessionID: SessionID,
@@ -752,8 +885,13 @@ const layer = Layer.effect(
         Effect.flatMap((id) =>
           Effect.gen(function* () {
             if (value) {
+              const settings = yield* readSettings()
+              if (settings?.disableAutoMode === true) {
+                yield* Effect.logWarning("reviewed auto mode is disabled by settings", { sessionID })
+                return
+              }
               yield* autostate.activate(id)
-              if (!breaker.has(id)) breaker.set(id, { consecutive: 0, total: 0, broken: false })
+              breaker.set(id, { consecutive: 0, total: 0, broken: false })
             } else yield* autostate.deactivate(id)
           }),
         ),
@@ -800,21 +938,26 @@ const layer = Layer.effect(
         denialLog.set(rootID, next)
       })
 
-    const transient = <A>(effect: Effect.Effect<A, Generate.Error>) =>
-      effect.pipe(
+    const transient = <A>(effect: Effect.Effect<A, Generate.Error>) => {
+      const attempt = effect.pipe(Effect.timeout(CLASSIFIER_TIMEOUT))
+      return attempt.pipe(
         Effect.catchTag("Generate.UnavailableError", (error) =>
           Effect.sleep(`${Math.min(Math.max(error.retryAfterMs ?? 2000, 500), 30_000)} millis`).pipe(
-            Effect.andThen(effect),
+            Effect.andThen(attempt),
           ),
+        ),
+        Effect.catchTag("TimeoutError", () =>
+          Effect.fail(new Generate.UnavailableError({ message: "classifier request timed out" })),
         ),
         Effect.option,
       )
+    }
 
-    const classify = Effect.fn("PermissionAuto.classify")(function* (input: {
+    const classifyWithModel = Effect.fn("PermissionAuto.classifyWithModel")(function* (input: {
       system: string
       transcript: string
       actionText: string
-      model: ReturnType<typeof selectModel>
+      model: NonNullable<ReturnType<typeof selectModel>>
       classifier: "both" | "fast" | "thinking"
       cacheKey: string
     }) {
@@ -872,6 +1015,25 @@ const layer = Layer.effect(
       return second
     })
 
+    const classify = Effect.fn("PermissionAuto.classify")(function* (input: {
+      system: string
+      transcript: string
+      actionText: string
+      models: ReadonlyArray<NonNullable<ReturnType<typeof selectModel>>>
+      classifier: "both" | "fast" | "thinking"
+      cacheKey: string
+    }) {
+      const seen = new Set<string>()
+      for (const model of input.models) {
+        const key = `${model.providerID}/${model.id}${model.variant ? `#${model.variant}` : ""}`
+        if (seen.has(key)) continue
+        seen.add(key)
+        const result = yield* classifyWithModel({ ...input, model })
+        if (result) return result
+      }
+      return undefined
+    })
+
     const gitStatus = (directory: string) =>
       Effect.promise(async () => {
         const proc = Bun.spawn(["git", "status", "--porcelain=v1", "-b"], {
@@ -885,19 +1047,30 @@ const layer = Layer.effect(
         return text.trim().slice(0, 4000) || "working tree clean"
       }).pipe(Effect.orElseSucceed(() => undefined))
 
+    const ask = (rootID: SessionID, request: Permission.Request, reason: string) =>
+      Effect.sync(() => {
+        // A human approval of this request resumes auto mode.
+        pendingAsks.set(request.id, rootID)
+        return { decision: "ask" as const, reason }
+      })
+
+    const modelChain = (
+      settings: Settings,
+      session: { model?: Model.Ref } | undefined,
+    ): ReadonlyArray<NonNullable<ReturnType<typeof selectModel>>> => {
+      const primary = selectModel(settings, session)
+      const fallback = settings.model ? session?.model : undefined
+      return [primary, fallback].filter((model): model is NonNullable<typeof primary> => model !== undefined)
+    }
+
     const review = Effect.fn("PermissionAuto.review")(function* (request: Permission.Request) {
       const rootID = yield* root(request.sessionID)
       const state = breaker.get(rootID)
       if (state?.broken) {
-        return { decision: "ask" as const, reason: "Auto mode needs a human review after repeated denials." }
+        return yield* ask(rootID, request, "Auto mode needs a human review after repeated denials.")
       }
       if (isSafeTool(request.action)) {
         const allowed = { decision: "allow" as const, reason: "Safe tool allowlist" }
-        yield* recordOutcome(rootID, allowed)
-        return allowed
-      }
-      if (isSubagentAction(request.action)) {
-        const allowed = { decision: "allow" as const, reason: "Subagent delegation" }
         yield* recordOutcome(rootID, allowed)
         return allowed
       }
@@ -928,27 +1101,22 @@ const layer = Layer.effect(
         ),
       )
       if (messages.length > 500) {
-        return { decision: "ask" as const, reason: "Auto mode transcript too long to classify" }
+        return yield* ask(rootID, request, "Auto mode transcript too long to classify")
       }
       const status = isGitSensitive(request.action, request.resources, request.metadata)
         ? yield* gitStatus(location.directory)
         : undefined
-      const promptText = prompt({
+      const parts = prompt({
         directory: location.directory,
         messages,
         request,
         gitStatus: status,
         settings: settings ?? {},
       })
-      const parts = promptText.split("USER AND TOOL-CALL TRANSCRIPT")
-      const system = parts[0] ?? promptText
-      const rest = parts.slice(1).join("USER AND TOOL-CALL TRANSCRIPT")
-      const transcript = rest.split("PROPOSED ACTION")[0] ?? ""
-      const actionText = `PROPOSED ACTION${rest.split("PROPOSED ACTION").slice(1).join("PROPOSED ACTION")}`
-      const model = selectModel(settings ?? {}, session ?? undefined)
+      const models = modelChain(settings ?? {}, session ?? undefined)
       const classifier = settings?.classifier ?? "both"
-      const cacheKey = `auto_mode`
-      const result = yield* classify({ system, transcript, actionText, model, classifier, cacheKey }).pipe(
+      const cacheKey = `auto_mode:${Bun.hash(parts.system).toString(36)}`
+      const result = yield* classify({ ...parts, models, classifier, cacheKey }).pipe(
         Effect.catchCause((cause) =>
           Effect.logWarning("automatic permission review unavailable", { sessionID: request.sessionID, cause }).pipe(
             Effect.as(undefined),
@@ -957,7 +1125,7 @@ const layer = Layer.effect(
       )
       if (!result) {
         const closed = yield* checkIronGate
-        if (!closed) return { decision: "ask" as const, reason: "Auto mode classifier unavailable" }
+        if (!closed) return yield* ask(rootID, request, "Auto mode classifier unavailable")
         return unevaluated("classifier unavailable")
       }
       yield* recordOutcome(rootID, result)
@@ -984,19 +1152,19 @@ const layer = Layer.effect(
       const settings = yield* readSettings()
       const session = yield* sessions.get(input.sessionID)
       const environment = resolveEnvironment(location.directory, settings?.environment)
-      const soft = resolveList(DEFAULT_BLOCKS, settings?.soft_deny ?? settings?.block)
+      const soft = resolveList(DEFAULT_BLOCKS, softDenyCustom(settings))
       const hard = resolveList(DEFAULT_HARD_DENY, settings?.hard_deny)
       const allows = resolveList(DEFAULT_ALLOWS, settings?.allow)
       const system = buildSystemPrompt({ directory: location.directory, environment, soft, hard, allows })
-      const model = selectModel(settings ?? {}, session ?? undefined)
+      const models = modelChain(settings ?? {}, session ?? undefined)
       const actionText = `Subagent delegation: agent=${input.agent}\nTask: ${input.prompt.slice(0, 4000)}\nHistory: ${input.history.slice(0, 8000)}`
       const result = yield* classify({
         system,
         transcript: input.prompt.slice(0, 8000),
         actionText,
-        model,
+        models,
         classifier: settings?.classifier ?? "both",
-        cacheKey: `auto_mode`,
+        cacheKey: `auto_mode:${Bun.hash(system).toString(36)}`,
       }).pipe(
         Effect.catchCause((cause) =>
           Effect.logWarning("subagent review unavailable", { sessionID: input.sessionID, cause }).pipe(
@@ -1053,12 +1221,18 @@ ${sample}`,
     const status: Interface["status"] = (sessionID) =>
       root(sessionID).pipe(
         Effect.flatMap((id) =>
-          autostate.isActive(id).pipe(
-            Effect.map((active) => {
-              const tracked = breaker.get(id) ?? { consecutive: 0, total: 0, broken: false }
-              return { enabled: active, consecutive: tracked.consecutive, total: tracked.total, broken: tracked.broken }
-            }),
-          ),
+          Effect.gen(function* () {
+            const settings = yield* readSettings()
+            const active = yield* autostate.isActive(id)
+            const tracked = breaker.get(id) ?? { consecutive: 0, total: 0, broken: false }
+            return {
+              enabled: active,
+              consecutive: tracked.consecutive,
+              total: tracked.total,
+              broken: tracked.broken,
+              disabled: settings?.disableAutoMode === true,
+            }
+          }),
         ),
       )
 
@@ -1068,26 +1242,69 @@ ${sample}`,
         soft_deny: [...DEFAULT_BLOCKS],
         hard_deny: [...DEFAULT_HARD_DENY],
         environment: `Only ${location.directory} is trusted.`,
+        classifier: "both" as const,
+        classify_all_shell: false,
+        prompt_injection_probe: true,
       })
 
     const effective: Interface["effective"] = Effect.fn("PermissionAuto.effective")(function* () {
       const settings = yield* readSettings()
       return {
         allow: resolveList(DEFAULT_ALLOWS, settings?.allow),
-        soft_deny: resolveList(DEFAULT_BLOCKS, settings?.soft_deny ?? settings?.block),
+        soft_deny: resolveList(DEFAULT_BLOCKS, softDenyCustom(settings)),
         hard_deny: resolveList(DEFAULT_HARD_DENY, settings?.hard_deny),
         environment: resolveEnvironment(location.directory, settings?.environment),
+        classifier: settings?.classifier ?? ("both" as const),
+        classify_all_shell: settings?.classifyAllShell === true,
+        prompt_injection_probe: settings?.prompt_injection_probe !== false,
+        ...(settings?.model
+          ? {
+              model: {
+                providerID: settings.model.providerID,
+                model: settings.model.model,
+                ...(settings.model.variant ? { variant: settings.model.variant } : {}),
+              },
+            }
+          : {}),
       }
+    })
+
+    const critique: Interface["critique"] = Effect.fn("PermissionAuto.critique")(function* () {
+      const settings = yield* readSettings()
+      const custom = {
+        allow: (settings?.allow ?? []).filter((rule) => rule !== "$defaults"),
+        soft_deny: (softDenyCustom(settings) ?? []).filter((rule) => rule !== "$defaults"),
+        hard_deny: (settings?.hard_deny ?? []).filter((rule) => rule !== "$defaults"),
+        environment: settings?.environment
+          ? resolveEnvironment(location.directory, settings.environment)
+          : undefined,
+      }
+      if (
+        custom.allow.length === 0 &&
+        custom.soft_deny.length === 0 &&
+        custom.hard_deny.length === 0 &&
+        custom.environment === undefined
+      ) {
+        return "No custom auto mode rules to critique. Add permission_auto.allow, soft_deny, hard_deny, or environment entries first."
+      }
+      const result = yield* transient(
+        generate.text({
+          model: selectModel(settings ?? {}, undefined),
+          prompt: `${CRITIQUE_PROMPT}${JSON.stringify(custom, null, 2)}\n`,
+        }),
+      )
+      if (result._tag === "None") return "Auto mode critique unavailable: no model could review the rules."
+      return result.value
     })
 
     yield* autostate.bindClassifier(review)
     yield* Effect.addFinalizer(() => autostate.bindClassifier(undefined))
-    return Service.of({ set, enabled, review, reviewSubagent, inspect, denials, status, defaults, effective })
+    return Service.of({ set, enabled, review, reviewSubagent, inspect, denials, status, defaults, effective, critique })
   }),
 )
 
 export const node = makeLocationNode({
   service: Service,
   layer,
-  deps: [Config.node, Generate.node, Location.node, SessionStore.node, PermissionAutoState.node],
+  deps: [Bus.node, Config.node, Generate.node, Location.node, SessionStore.node, PermissionAutoState.node],
 })
