@@ -16,6 +16,7 @@ import { OpenAIChat } from "@opencode/ai/protocols"
 import { TestLLM } from "@opencode/ai/testing"
 import { AISDK } from "@opencode/core/aisdk"
 import { Credential } from "@opencode/core/credential"
+import { App } from "@opencode/core/app"
 import { Generate } from "@opencode/core/generate"
 import { Integration } from "@opencode/core/integration"
 import { IntegrationConnection } from "@opencode/core/integration/connection"
@@ -87,6 +88,9 @@ const it = testEffect(Generate.layer.pipe(Layer.provide(Layer.mergeAll(resolver,
 const resolverIt = testEffect(resolver)
 const retryIt = testEffect(
   Generate.layer.pipe(Layer.provideMerge(Layer.mergeAll(resolver, TestLLM.testLayer(), generateDeps))),
+)
+const sessionIt = testEffect(
+  Generate.layer.pipe(Layer.provideMerge(Layer.mergeAll(resolver, client, generateDeps))),
 )
 
 it.effect("loads dynamic AI SDK models", () =>
@@ -203,6 +207,28 @@ retryIt.effect("retries an overloaded provider at most three times", () =>
     yield* TestClock.adjust("2 minutes")
     expect(yield* Fiber.join(result)).toMatchObject({ _tag: "Generate.ProviderRequestError", reason: "overloaded" })
     expect(yield* llm.requests()).toHaveLength(4)
+  }),
+)
+
+sessionIt.effect("sends session routing headers when a session is given", () =>
+  Effect.gen(function* () {
+    const generate = yield* Generate.Service
+    const llm = yield* TestLLM.Test
+    yield* generate.text({
+      prompt: "Return exactly OK",
+      model: Ref.make({ providerID: selected.providerID, id: selected.id }),
+      session: { id: "ses_child", projectID: "prj_test", parentID: "ses_parent" },
+    })
+
+    expect((yield* llm.requests()).at(-1)?.http?.headers).toEqual({
+      "x-session-affinity": "ses_child",
+      "X-Session-Id": "ses_child",
+      "x-parent-session-id": "ses_parent",
+      "User-Agent": App.useragent(App.make()),
+      "x-opencode-project": "prj_test",
+      "x-opencode-session": "ses_child",
+      "x-opencode-client": "opencode",
+    })
   }),
 )
 
