@@ -37,27 +37,25 @@ opencode run --auto "Refactor this module"
 Each tool call in auto mode is decided in this order, and the first match wins:
 
 1. A `"deny"` rule blocks the call, even over a saved approval.
-2. Reads always run: read, grep, glob, list, and access to folders outside the
-   project, for any file including `.env` and home dotfiles such as `~/.zshrc`.
-   `"ask"` rules on reads do not apply in auto mode.
+2. Reads and file edits always run: read, grep, glob, list, and access to
+   folders outside the project, and edit, write, and patch on any path —
+   including `.env`, home dotfiles such as `~/.zshrc`, temporary folders, and
+   OpenCode's own config. `"ask"` rules on these tools do not apply in auto
+   mode.
 3. An `"ask"` rule that names specific content (for example
    `"git push *": "ask"`) prompts you. A blanket `"*": "ask"` does not; those
    calls go to the classifier.
-4. Writes to protected paths and `rm`/`rmdir` of critical paths go to the
-   classifier even when an allow rule matches.
+4. `rm`/`rmdir` of critical paths goes to the classifier even when an allow
+   rule matches.
 5. Any other `"allow"` rule approves the call. On entering auto mode, allow
    rules that grant arbitrary code execution are suspended: `*`, blanket shell,
    wildcarded interpreters and package-manager run commands, and subagent
    allows. Narrow rules such as `"bun typecheck": "allow"` stay in effect.
-6. File edits inside the working directory run.
-7. Everything else goes to the classifier: shell commands, edits outside the
-   working directory, subagent launches, web fetches and searches, and MCP tools.
+6. Everything else goes to the classifier: shell commands, subagent launches,
+   web fetches and searches, and MCP tools.
 
-**Protected paths**: `.git`, `.config/git`, `.vscode`, `.idea`, `.husky`,
-`.cargo`, `.devcontainer`, `.yarn`, `.mvn`, `.claude`, `.opencode`, `.agents`,
-and files such as `opencode.json(c)`, `.gitconfig`, `.gitmodules`, shell startup
-files (`.bashrc`, `.zshrc`, `.profile`, …), `.envrc`, `.npmrc`, `bunfig.toml`,
-`.pre-commit-config.yaml`, `lefthook.yml`, and `.mcp.json`.
+To keep auto mode away from specific files, add a `"deny"` rule for them, for
+example `"edit": { "secrets/*": "deny" }`.
 
 **Critical paths**: the filesystem root, its top-level directories, your home
 directory, the working directory and its parents, and unguarded variable globs
@@ -94,8 +92,8 @@ those limits, and the agent is told it may retry. In `opencode run --auto`,
 anything that would need your approval is denied and the run continues.
 
 Auto mode reduces risk but does not eliminate it: the classifier can miss
-harmful actions, and in-project file edits are never reviewed. Use version
-control, and a container or sandbox for sensitive work.
+harmful actions, and file edits are never reviewed. Use version control, and
+a container or sandbox for sensitive work.
 
 In the TUI, open the command palette and select **Enable reviewed auto mode**
 or **Disable reviewed auto mode**, or use **Cycle permission mode** to move
