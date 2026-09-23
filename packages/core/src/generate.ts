@@ -10,6 +10,7 @@ import { ModelResolver } from "./model-resolver.js"
 import { Model } from "./model.js"
 
 export interface TextInput {
+  readonly system?: string
   readonly prompt: string
   readonly model?: Model.Ref
   readonly generation?: { readonly maxTokens?: number; readonly temperature?: number; readonly stop?: ReadonlyArray<string> }
@@ -25,9 +26,19 @@ export class UnavailableError extends Schema.TaggedError<UnavailableError>()("Ge
   message: Schema.String,
   service: Schema.optional(Schema.String),
   retryAfterMs: Schema.optional(Schema.Number),
+  category: Schema.optional(Schema.Literals(["rate-limited", "server error", "timed out", "connection failed", "refused"])),
 }) {}
 
 export type Error = ModelSelectionError | UnavailableError
+
+const CATEGORY: Partial<Record<AIError["reason"]["_tag"], NonNullable<UnavailableError["category"]>>> = {
+  RateLimit: "rate-limited",
+  QuotaExceeded: "rate-limited",
+  ProviderInternal: "server error",
+  Timeout: "timed out",
+  Transport: "connection failed",
+  ContentPolicy: "refused",
+}
 
 export interface Interface {
   readonly text: (input: TextInput) => Effect.Effect<string, Error>
@@ -71,6 +82,7 @@ export const layer = Layer.effect(
         .generate(
           LLM.request({
             model: resolved.model,
+            ...(input.system ? { system: input.system } : {}),
             prompt: input.prompt,
             ...(input.generation ? { generation: input.generation } : {}),
             ...(input.promptCacheKey ? { promptCacheKey: input.promptCacheKey } : {}),
@@ -100,10 +112,12 @@ export const layer = Layer.effect(
               error.reason._tag === "RateLimit" || error.reason._tag === "ProviderInternal"
                 ? error.reason.retryAfterMs
                 : undefined
+            const category = CATEGORY[error.reason._tag]
             return new UnavailableError({
               message: error.message,
               service: resolved.ref.providerID,
               ...(retryAfterMs === undefined ? {} : { retryAfterMs }),
+              ...(category ? { category } : {}),
             })
           }),
         )

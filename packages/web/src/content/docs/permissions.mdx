@@ -34,11 +34,68 @@ You can also use auto mode with [`opencode run`](/docs/cli#run).
 opencode run --auto "Refactor this module"
 ```
 
-Reads and in-project file edits run without review. Shell commands,
-out-of-project edits, subagent launches, web fetches, and web searches go to
-the classifier. Classifier denials return `Blocked by classifier` feedback to
-the agent, and explicit `"deny"` rules are still enforced, including over a
-saved approval. Classifier failures deny by default.
+Each tool call in auto mode is decided in this order, and the first match wins:
+
+1. A `"deny"` rule blocks the call, even over a saved approval.
+2. Reads always run: read, grep, glob, list, and access to folders outside the
+   project, for any file including `.env` and home dotfiles such as `~/.zshrc`.
+   `"ask"` rules on reads do not apply in auto mode.
+3. An `"ask"` rule that names specific content (for example
+   `"git push *": "ask"`) prompts you. A blanket `"*": "ask"` does not; those
+   calls go to the classifier.
+4. Writes to protected paths and `rm`/`rmdir` of critical paths go to the
+   classifier even when an allow rule matches.
+5. Any other `"allow"` rule approves the call. On entering auto mode, allow
+   rules that grant arbitrary code execution are suspended: `*`, blanket shell,
+   wildcarded interpreters and package-manager run commands, and subagent
+   allows. Narrow rules such as `"bun typecheck": "allow"` stay in effect.
+6. File edits inside the working directory run.
+7. Everything else goes to the classifier: shell commands, edits outside the
+   working directory, subagent launches, web fetches and searches, and MCP tools.
+
+**Protected paths**: `.git`, `.config/git`, `.vscode`, `.idea`, `.husky`,
+`.cargo`, `.devcontainer`, `.yarn`, `.mvn`, `.claude`, `.opencode`, `.agents`,
+and files such as `opencode.json(c)`, `.gitconfig`, `.gitmodules`, shell startup
+files (`.bashrc`, `.zshrc`, `.profile`, …), `.envrc`, `.npmrc`, `bunfig.toml`,
+`.pre-commit-config.yaml`, `lefthook.yml`, and `.mcp.json`.
+
+**Critical paths**: the filesystem root, its top-level directories, your home
+directory, the working directory and its parents, and unguarded variable globs
+such as `rm -rf "$DIR"/*` (use `"${DIR:?}"` to guard them).
+
+### What the classifier sees
+
+The classifier reads your messages, your project instruction files
+(`AGENTS.md`), and the agent's tool calls as one JSON object per
+line. It never sees the agent's own prose next to an action or any tool output,
+so content in files or web pages cannot argue with it directly. Before commands
+that can discard work, OpenCode adds the current `git status`, and it tells the
+classifier which git remotes existed when auto mode started. A separate probe
+screens results from shell, web, and MCP tools for prompt injection and adds a
+warning when it finds one.
+
+The classifier runs in two stages: a fast yes/no check that errs toward
+blocking, and a reasoning check that only runs when the first one flags the
+action. It uses the session's model unless `permission_auto.model` is set.
+
+### Denials
+
+A blocked call returns to the agent with the rule that matched, for example
+`[Git Destructive]`, whether the block is hard or soft, and what you would have
+to name to clear it. The agent keeps working on other parts of the task. To
+approve a blocked action, say so specifically: "force-push feature-x" clears a
+force-push block, "you can force-push" does not. `/denials` lists recent blocks
+and lets you approve one for a retry.
+
+After 3 blocks in a row or 20 in a session, auto mode pauses and prompts you
+instead; approving that prompt resumes it. When the classifier is unavailable
+or its reply cannot be parsed, the action is denied without counting toward
+those limits, and the agent is told it may retry. In `opencode run --auto`,
+anything that would need your approval is denied and the run continues.
+
+Auto mode reduces risk but does not eliminate it: the classifier can miss
+harmful actions, and in-project file edits are never reviewed. Use version
+control, and a container or sandbox for sensitive work.
 
 In the TUI, open the command palette and select **Enable reviewed auto mode**
 or **Disable reviewed auto mode**, or use **Cycle permission mode** to move
@@ -47,9 +104,35 @@ to start sessions in reviewed auto mode. When auto mode is active, the prompt
 displays a muted `auto` indicator next to the current agent; accept-edits mode
 shows `accept`.
 
-See the [auto mode configuration](/docs/config#reviewed-auto-mode) for
-`permission_auto` rules, trusted environments, and the
-`opencode auto-mode defaults|config|critique|reset` commands.
+### Configure auto mode
+
+The built-in rules include an environment description of what is trusted,
+soft-deny rules that your specific approval can clear, hard-deny rules that
+nothing clears, and allow exceptions. Add your own in the
+`permission_auto` section of your global config. Include `"$defaults"` in a
+list to keep the built-in entries; a list without it replaces them.
+
+```json title="~/.config/opencode/opencode.json"
+{
+  "permission_auto": {
+    "environment": ["$defaults", "Source control: github.com/acme and all repos under it"],
+    "allow": ["$defaults", "Deploying to the staging namespace is allowed"],
+    "soft_deny": ["$defaults", "Never run database migrations outside the migrations CLI"],
+    "hard_deny": ["$defaults", "Never send repository contents to third-party review APIs"]
+  }
+}
+```
+
+Other fields: `model` (classifier model), `classifier` (`both`, `fast`, or
+`thinking`), `classifyAllShell` (suspend every shell allow rule in auto mode),
+`prompt_injection_probe`, and `disableAutoMode`. Entries from every config file
+outside the project are combined; `permission_auto` in the project's own config
+is ignored so a repository cannot widen what the classifier allows.
+
+- `opencode auto-mode defaults [--label <prefix>]` prints the built-in rules.
+- `opencode auto-mode config` prints the effective rules.
+- `opencode auto-mode critique` reviews your custom rules.
+- `opencode auto-mode reset` removes your custom rules.
 
 ---
 

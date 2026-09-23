@@ -200,12 +200,8 @@ const layer = Layer.effect(
     }
 
     const autoClassifyAll = Effect.fnUntraced(function* () {
-      const entries = yield* config.entries()
-      const scoped = entries.filter((entry) => {
-        if (entry.type !== "document" || !entry.path) return true
-        return !entry.path.startsWith(`${location.directory}/`)
-      })
-      return Config.latest(scoped, "permission_auto")?.classifyAllShell === true
+      const roots = [location.directory, location.project.directory]
+      return PermissionAuto.settingsFrom(yield* config.entries(), roots).classifyAllShell === true
     })
 
     const evaluateInput = Effect.fnUntraced(function* (input: AssertInput) {
@@ -228,29 +224,16 @@ const layer = Layer.effect(
       // reject explore's read/glob/grep allows because of the leading `* * deny`.
       const winners = input.resources.map((resource) => evaluate(input.action, resource, all))
       const gated = autoActive
-        ? PermissionAuto.isCriticalRemoval(input.action, input.resources)
-          ? {
-              effect: "deny" as const,
-              classify: false,
-              message: PermissionAuto.denyFeedback("Critical-path removal denied without classifier review"),
-            }
-          : PermissionAuto.autoGate({
-              action: input.action,
-              resources: input.resources,
-              directory: location.directory,
-              // Configured deny rules always win in auto mode. Saved approvals
-              // are user-granted allows and never override an explicit deny.
-              denied: denied(input, configuredForEval),
-              contentScopedAsk: winners.some((rule) =>
-                PermissionAuto.isContentScopedAsk({
-                  effect: rule.effect,
-                  implicit: false,
-                  action: rule.action,
-                  resource: rule.resource,
-                }),
-              ),
-              allowed: winners.length > 0 && winners.every((rule) => rule.effect === "allow"),
-            })
+        ? PermissionAuto.autoGate({
+            action: input.action,
+            resources: input.resources,
+            directory: location.directory,
+            // Configured deny rules always win in auto mode. Saved approvals
+            // are user-granted allows and never override an explicit deny.
+            denied: denied(input, configuredForEval),
+            ask: winners.some((rule) => PermissionAuto.isContentScopedAsk(rule)),
+            allowed: winners.length > 0 && winners.every((rule) => rule.effect === "allow"),
+          })
         : {
             effect: (groups.some((group) => (group.at(-1)?.effect ?? "ask") === "ask")
               ? "ask"
@@ -268,7 +251,7 @@ const layer = Layer.effect(
       })
       return {
         effect: event.effect,
-        message: event.message ?? ("message" in gated ? gated.message : undefined),
+        message: event.message,
         rules: all,
         classify: gated.classify && event.effect === "ask",
       }
@@ -339,7 +322,7 @@ const layer = Layer.effect(
                 if (reviewed.decision === "allow") return
                 if (reviewed.decision === "deny") {
                   if (PermissionAuto.isUnevaluated(reviewed)) {
-                    return yield* new CorrectedError({ feedback: PermissionAuto.unevaluatedFeedback(reviewed.reason) })
+                    return yield* new CorrectedError({ feedback: reviewed.feedback ?? reviewed.reason })
                   }
                   yield* bus.publish(Permission.Event.AutoDenied, {
                     sessionID: proposed.sessionID,
@@ -348,7 +331,11 @@ const layer = Layer.effect(
                     resources: proposed.resources,
                     reason: reviewed.reason,
                   })
-                  return yield* new CorrectedError({ feedback: PermissionAuto.denyFeedback(reviewed.reason) })
+                  return yield* new CorrectedError({
+                    feedback:
+                      reviewed.feedback ??
+                      `Permission for this action was denied by the OpenCode auto mode classifier. Reason: ${reviewed.reason}`,
+                  })
                 }
                 const item = yield* create({ ...proposed, message: reviewed.reason }, input.agent)
                 return yield* restore(Deferred.await(item.deferred)).pipe(
