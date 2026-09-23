@@ -1,9 +1,10 @@
 export * as SubagentJob from "./subagent-job.js"
 
-import { Context, Effect, Layer, Scope } from "effect"
+import { Context, Effect, Layer, Option, Scope } from "effect"
 import { Node } from "@opencode/util/effect/app-node"
 import type { LayerNode } from "@opencode/util/effect/layer-node"
 import { Job } from "../job.js"
+import { PermissionAuto } from "../permission/auto.js"
 import { Session } from "../session.js"
 import { SubagentCompletion } from "./subagent-completion.js"
 
@@ -24,6 +25,7 @@ const make: Effect.Effect<Interface, never, Session.Service | Job.Service | Scop
   // Jobs and their completion observers outlive the plugin that launched them.
   // Fork with the global context too, rather than retaining the caller's location.
   const context = yield* Effect.context<never>()
+  const auto = yield* Effect.serviceOption(PermissionAuto.Service)
   // One observer per job generation, including continuations of the same child.
   const notifications = new Set<string>()
 
@@ -33,7 +35,16 @@ const make: Effect.Effect<Interface, never, Session.Service | Job.Service | Scop
     notifications.add(key)
     yield* Effect.gen(function* () {
       const info = (yield* jobs.wait({ id: recovery.childSessionID })).info
-      if (info) yield* SubagentCompletion.deliver(sessions, jobs, { ...info, recovery })
+      if (!info) return
+      const output =
+        info.status === "completed" && Option.isSome(auto)
+          ? yield* auto.value.handback({
+              sessionID: recovery.childSessionID,
+              agent: recovery.agent,
+              output: info.output ?? SubagentCompletion.NO_TEXT,
+            })
+          : info.output
+      yield* SubagentCompletion.deliver(sessions, jobs, { ...info, output, recovery })
     }).pipe(
       Effect.ensuring(Effect.sync(() => notifications.delete(key))),
       Effect.forkIn(scope, { startImmediately: true }),
