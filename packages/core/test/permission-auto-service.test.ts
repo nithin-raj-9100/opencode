@@ -133,6 +133,24 @@ describe("PermissionAuto service", () => {
     }),
   )
 
+  it.effect("sends the reviewed session to the classifier", () =>
+    Effect.gen(function* () {
+      yield* setup
+      const seen: Generate.TextInput[] = []
+      handler = (input) => {
+        seen.push(input)
+        return Effect.succeed("<allow>routine</allow>")
+      }
+      const auto = yield* PermissionAuto.Service
+      yield* auto.set(SESSION, true)
+
+      expect((yield* auto.review(request("per_s1"))).decision).toBe("allow")
+      expect(seen.length).toBeGreaterThan(0)
+      expect(seen.every((input) => input.session?.id === SESSION)).toBe(true)
+      expect(seen.every((input) => input.session?.projectID === Project.ID.global)).toBe(true)
+    }),
+  )
+
   itDisabled.effect("ignores enable requests when disableAutoMode is set", () =>
     Effect.gen(function* () {
       yield* setup
