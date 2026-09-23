@@ -361,5 +361,27 @@ describe("PermissionAuto", () => {
     expect(PermissionAutoState.shouldStripAllow("webfetch", "*", false)).toBe(false)
     expect(PermissionAutoState.shouldStripAllow("shell", "npm test", false)).toBe(false)
     expect(PermissionAutoState.shouldStripAllow("shell", "npm test", true)).toBe(true)
+
+    // Interpreters and package-manager runs grant arbitrary execution.
+    expect(PermissionAutoState.shouldStripAllow("shell", "bun *", false)).toBe(true)
+    expect(PermissionAutoState.shouldStripAllow("shell", "bun", false)).toBe(true)
+    expect(PermissionAutoState.shouldStripAllow("shell", "bun*", false)).toBe(true)
+    expect(PermissionAutoState.shouldStripAllow("shell", "python *", false)).toBe(true)
+    expect(PermissionAutoState.shouldStripAllow("shell", "node *", false)).toBe(true)
+    expect(PermissionAutoState.shouldStripAllow("shell", "sh -c *", false)).toBe(true)
+    expect(PermissionAutoState.shouldStripAllow("shell", "bash -lc *", false)).toBe(true)
+    expect(PermissionAutoState.shouldStripAllow("shell", "npm run *", false)).toBe(true)
+    expect(PermissionAutoState.shouldStripAllow("shell", "pnpm dlx *", false)).toBe(true)
+    expect(PermissionAutoState.shouldStripAllow("shell", "env bun *", false)).toBe(true)
+    expect(PermissionAutoState.shouldStripAllow("shell", "timeout 30 bun *", false)).toBe(true)
+    expect(PermissionAutoState.shouldStripAllow("shell", "GIT_EDITOR=true *", false)).toBe(true)
+
+    // Narrow, constrained rules still carry over.
+    expect(PermissionAutoState.shouldStripAllow("shell", "bun install *", false)).toBe(false)
+    expect(PermissionAutoState.shouldStripAllow("shell", "bun typecheck", false)).toBe(false)
+    expect(PermissionAutoState.shouldStripAllow("shell", "node --version *", false)).toBe(false)
+    expect(PermissionAutoState.shouldStripAllow("shell", "python3 -m json.tool *", false)).toBe(false)
+    expect(PermissionAutoState.shouldStripAllow("shell", "git *", false)).toBe(false)
+    expect(PermissionAutoState.shouldStripAllow("shell", "sed -n *", false)).toBe(false)
   })
 })
