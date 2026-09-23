@@ -8,6 +8,7 @@ import { Context, Effect, Layer, Schema } from "effect"
 import { RequestExecutor } from "@opencode/ai/route"
 import { makeLocationNode } from "@opencode/util/effect/app-node"
 import { llmClient, requestExecutor } from "./effect/app-node-platform.js"
+import { App } from "./app.js"
 import { Integration } from "./integration.js"
 import { ModelResolver } from "./model-resolver.js"
 import { Model } from "./model.js"
@@ -18,6 +19,7 @@ export interface TextInput {
   readonly model?: Model.Ref
   readonly generation?: { readonly maxTokens?: number; readonly temperature?: number; readonly stop?: ReadonlyArray<string> }
   readonly promptCacheKey?: string
+  readonly session?: { readonly id: string; readonly projectID: string; readonly parentID?: string }
 }
 
 export class UnavailableError extends Schema.TaggedError<UnavailableError>()("Generate.UnavailableError", {
@@ -90,6 +92,7 @@ export const layer = Layer.effect(
     const executor = yield* RequestExecutor.Service
     const images = yield* ImageClient.Service
     const decisionClient = yield* DecisionClient.Service
+    const app = yield* App.Metadata
 
     const runText = Effect.fn("Generate.text")(function* (input: TextInput) {
       const resolved = yield* resolver.resolve(input.model).pipe(
@@ -120,8 +123,24 @@ export const layer = Layer.effect(
             prompt: input.prompt,
             ...(input.generation ? { generation: input.generation } : {}),
             ...(input.promptCacheKey ? { promptCacheKey: input.promptCacheKey } : {}),
-            // Gateways require session attribution even for a stateless call; no Session is stored.
-            http: { headers: { "x-opencode-session": SessionID.create() } },
+            ...(input.session
+              ? {
+                  http: {
+                    headers: {
+                      "x-session-affinity": input.session.id,
+                      "X-Session-Id": input.session.id,
+                      ...(input.session.parentID ? { "x-parent-session-id": input.session.parentID } : {}),
+                      "User-Agent": App.useragent(app),
+                      "x-opencode-project": input.session.projectID,
+                      "x-opencode-session": input.session.id,
+                      "x-opencode-client": app.name,
+                    },
+                  },
+                }
+              : {
+                  // Gateways require session attribution even for a stateless call; no Session is stored.
+                  http: { headers: { "x-opencode-session": SessionID.create() } },
+                }),
           }),
         )
         .pipe(
