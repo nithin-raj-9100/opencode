@@ -341,7 +341,13 @@ export const Plugin = {
       })
       yield* Effect.forEach(
         requests,
-        (request) => permission.assert({ ...request, ...Permission.invocation(context) }),
+        (request) =>
+          permission.assert({
+            ...request,
+            // The classifier reads the whole command line and where it runs.
+            ...(request.action === name ? { metadata: { command: invocation.command, workdir: target.resource } } : {}),
+            ...Permission.invocation(context),
+          }),
         { discard: true },
       )
       // Approval can outlive the directory, so validate immediately before spawning.

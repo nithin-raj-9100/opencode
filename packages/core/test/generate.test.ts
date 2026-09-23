@@ -83,7 +83,7 @@ const aisdk = Layer.mock(AISDK.Service, {
 const client = TestLLM.testLayer({ fallback: TestLLM.text("OK", "generate") })
 
 const resolver = ModelResolver.layer.pipe(Layer.provide(Layer.mergeAll(providers, models, integrations, npm, aisdk)))
-const generateDeps = Layer.mergeAll(models, RequestExecutor.fetchLayer)
+const generateDeps = Layer.mergeAll(models, RequestExecutor.fetchLayer, App.layer())
 const it = testEffect(Generate.layer.pipe(Layer.provide(Layer.mergeAll(resolver, client, generateDeps))))
 const resolverIt = testEffect(resolver)
 const retryIt = testEffect(
@@ -220,7 +220,7 @@ sessionIt.effect("sends session routing headers when a session is given", () =>
       session: { id: "ses_child", projectID: "prj_test", parentID: "ses_parent" },
     })
 
-    expect((yield* llm.requests()).at(-1)?.http?.headers).toEqual({
+    expect((yield* llm.requests()).at(-1)?.headers).toEqual({
       "x-session-affinity": "ses_child",
       "X-Session-Id": "ses_child",
       "x-parent-session-id": "ses_parent",
@@ -294,7 +294,9 @@ testEffect(Layer.empty).effect("attributes each stateless completion without cre
           }),
         ).toBe("OK")
       }
-    }).pipe(Effect.provide(Generate.layer.pipe(Layer.provide(Layer.mergeAll(resolver, native, models, executor)))))
+    }).pipe(
+      Effect.provide(Generate.layer.pipe(Layer.provide(Layer.mergeAll(resolver, native, models, executor, App.layer())))),
+    )
     expect(sessions).toHaveLength(2)
     expect(sessions[0]).toStartWith("ses_")
     expect(sessions[1]).not.toBe(sessions[0])
@@ -468,7 +470,7 @@ describe("image and decision generation", () => {
     Layer.provide(Layer.mergeAll(mediaProviders, mediaModels, mediaIntegrations, npm, aisdk)),
   )
   const mediaIt = testEffect(
-    Generate.layer.pipe(Layer.provide(Layer.mergeAll(mediaResolver, client, mediaModels, executor))),
+    Generate.layer.pipe(Layer.provide(Layer.mergeAll(mediaResolver, client, mediaModels, executor, App.layer()))),
   )
   const ref = (providerID: string, id: string, variant?: string) =>
     Ref.make({
