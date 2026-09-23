@@ -206,6 +206,7 @@ describe("PermissionAuto service", () => {
       const review = yield* auto.review(request("per_unavailable"))
       expect(review.decision).toBe("deny")
       expect(PermissionAuto.isUnevaluated(review)).toBe(true)
+      if (review.decision === "deny") expect(review.reason).toContain("down")
     }),
   )
 })
