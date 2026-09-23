@@ -8,7 +8,7 @@ export class Info extends Schema.Class<Info>("Config.PermissionAuto")({
   model: ConfigModel.Selection.pipe(optional).annotate({
     description: "Model used for automatic permission reviews; defaults to the active session model",
   }),
-  environment: Schema.String.pipe(optional).annotate({
+  environment: Schema.Union([Schema.Array(Schema.String), Schema.String]).pipe(optional).annotate({
     description: "Trusted services, organizations, and infrastructure available to the permission reviewer",
   }),
   block: Schema.String.pipe(Schema.Array, optional).annotate({
@@ -31,5 +31,8 @@ export class Info extends Schema.Class<Info>("Config.PermissionAuto")({
   }),
   prompt_injection_probe: Schema.Boolean.pipe(optional).annotate({
     description: "Screen textual tool results for prompt injection while reviewed auto mode is active",
+  }),
+  disableAutoMode: Schema.Boolean.pipe(optional).annotate({
+    description: "Disable reviewed auto mode for every session, including --auto and client requests",
   }),
 }) {}
