@@ -143,7 +143,15 @@ export const Plugin = {
                   metadata: { agent: agent.id, description: input.description, prompt: input.prompt },
                   ...Permission.invocation(context),
                 })
-                .pipe(Effect.mapError((error) => new ToolFailure({ message: `Subagent denied: ${agent.id}`, error })))
+                .pipe(
+                  Effect.mapError((error) => {
+                    const reason =
+                      "message" in error && typeof error.message === "string" && error.message
+                        ? ` — ${error.message}`
+                        : ""
+                    return new ToolFailure({ message: `Subagent denied: ${agent.id}${reason}`, error })
+                  }),
+                )
 
               const existing =
                 input.sessionID === undefined
