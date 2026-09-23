@@ -3,7 +3,7 @@ export * as PermissionAuto from "./auto.js"
 import { Event, type Permission } from "@opencode/schema/permission"
 import type { Model } from "@opencode/schema/model"
 import path from "path"
-import { Context, Effect, Layer } from "effect"
+import { Cause, Context, Effect, Layer } from "effect"
 import { makeLocationNode } from "@opencode/util/effect/app-node"
 import { Bus } from "../bus.js"
 import { Config } from "../config.js"
@@ -163,6 +163,17 @@ export function denyFeedback(reason: string) {
 
 export function unevaluatedFeedback(reason: string) {
   return `${reason}. This is not a judgment that the action is unsafe. You may retry the same action, or continue with other work.`
+}
+
+/** Short diagnostic for a swallowed classifier failure, shown in the denial reason. */
+export function failureDetail(cause: Cause.Cause<unknown>) {
+  if (!Cause.hasFails(cause) && !Cause.hasDies(cause)) return undefined
+  const error = Cause.squash(cause)
+  const message =
+    typeof error === "object" && error !== null && typeof (error as { message?: unknown }).message === "string"
+      ? (error as { message: string }).message
+      : undefined
+  return message?.replace(/\s+/g, " ").slice(0, 200)
 }
 
 export function autoGate(input: {
@@ -938,16 +949,19 @@ const layer = Layer.effect(
         denialLog.set(rootID, next)
       })
 
-    const transient = <A>(effect: Effect.Effect<A, Generate.Error>) => {
+    const transient = <A>(effect: Effect.Effect<A, Generate.Error>, onFailure?: (detail: string) => void) => {
       const attempt = effect.pipe(Effect.timeout(CLASSIFIER_TIMEOUT))
       return attempt.pipe(
         Effect.catchTag("Generate.UnavailableError", (error) =>
-          Effect.sleep(`${Math.min(Math.max(error.retryAfterMs ?? 2000, 500), 30_000)} millis`).pipe(
+          Effect.sync(() => onFailure?.(error.message)).pipe(
+            Effect.andThen(Effect.sleep(`${Math.min(Math.max(error.retryAfterMs ?? 2000, 500), 30_000)} millis`)),
             Effect.andThen(attempt),
           ),
         ),
         Effect.catchTag("TimeoutError", () =>
-          Effect.fail(new Generate.UnavailableError({ message: "classifier request timed out" })),
+          Effect.sync(() => onFailure?.("classifier request timed out")).pipe(
+            Effect.andThen(Effect.fail(new Generate.UnavailableError({ message: "classifier request timed out" }))),
+          ),
         ),
         Effect.option,
       )
@@ -960,6 +974,7 @@ const layer = Layer.effect(
       model: NonNullable<ReturnType<typeof selectModel>>
       classifier: "both" | "fast" | "thinking"
       cacheKey: string
+      onFailure?: (detail: string) => void
     }) {
       const transcript = `<transcript>\n${input.transcript}\n${input.actionText}\n</transcript>`
       if (input.classifier !== "thinking") {
@@ -970,6 +985,7 @@ const layer = Layer.effect(
             generation: { maxTokens: 64, temperature: 0, stop: ["</block>"] },
             promptCacheKey: input.cacheKey,
           }),
+          input.onFailure,
         )
         if (fast._tag === "None") return undefined
         const xml = parseXml(fast.value)
@@ -988,6 +1004,7 @@ const layer = Layer.effect(
           generation: { maxTokens: 4096, temperature: 0 },
           promptCacheKey: input.cacheKey,
         }),
+        input.onFailure,
       )
       if (slow._tag === "None") return undefined
       const first = parse(slow.value)
@@ -1003,6 +1020,7 @@ const layer = Layer.effect(
           generation: { maxTokens: 256, temperature: 0 },
           promptCacheKey: input.cacheKey,
         }),
+        input.onFailure,
       )
       if (retry._tag === "None") return undefined
       const second = parse(retry.value)
@@ -1022,6 +1040,7 @@ const layer = Layer.effect(
       models: ReadonlyArray<NonNullable<ReturnType<typeof selectModel>>>
       classifier: "both" | "fast" | "thinking"
       cacheKey: string
+      onFailure?: (detail: string) => void
     }) {
       const seen = new Set<string>()
       for (const model of input.models) {
@@ -1116,17 +1135,28 @@ const layer = Layer.effect(
       const models = modelChain(settings ?? {}, session ?? undefined)
       const classifier = settings?.classifier ?? "both"
       const cacheKey = `auto_mode:${Bun.hash(parts.system).toString(36)}`
-      const result = yield* classify({ ...parts, models, classifier, cacheKey }).pipe(
-        Effect.catchCause((cause) =>
-          Effect.logWarning("automatic permission review unavailable", { sessionID: request.sessionID, cause }).pipe(
+      let failure: string | undefined
+      const result = yield* classify({
+        ...parts,
+        models,
+        classifier,
+        cacheKey,
+        onFailure: (detail) => {
+          failure = detail
+        },
+      }).pipe(
+        Effect.catchCause((cause) => {
+          const detail = failureDetail(cause)
+          if (detail) failure = detail
+          return Effect.logWarning("automatic permission review unavailable", { sessionID: request.sessionID, cause }).pipe(
             Effect.as(undefined),
-          ),
-        ),
+          )
+        }),
       )
       if (!result) {
         const closed = yield* checkIronGate
         if (!closed) return yield* ask(rootID, request, "Auto mode classifier unavailable")
-        return unevaluated("classifier unavailable")
+        return unevaluated(failure ? `classifier unavailable: ${failure}` : "classifier unavailable")
       }
       yield* recordOutcome(rootID, result)
       if (result.decision === "deny" && !isUnevaluated(result)) yield* pushDenial(rootID, request, result)
@@ -1158,6 +1188,7 @@ const layer = Layer.effect(
       const system = buildSystemPrompt({ directory: location.directory, environment, soft, hard, allows })
       const models = modelChain(settings ?? {}, session ?? undefined)
       const actionText = `Subagent delegation: agent=${input.agent}\nTask: ${input.prompt.slice(0, 4000)}\nHistory: ${input.history.slice(0, 8000)}`
+      let failure: string | undefined
       const result = yield* classify({
         system,
         transcript: input.prompt.slice(0, 8000),
@@ -1165,17 +1196,22 @@ const layer = Layer.effect(
         models,
         classifier: settings?.classifier ?? "both",
         cacheKey: `auto_mode:${Bun.hash(system).toString(36)}`,
+        onFailure: (detail) => {
+          failure = detail
+        },
       }).pipe(
-        Effect.catchCause((cause) =>
-          Effect.logWarning("subagent review unavailable", { sessionID: input.sessionID, cause }).pipe(
+        Effect.catchCause((cause) => {
+          const detail = failureDetail(cause)
+          if (detail) failure = detail
+          return Effect.logWarning("subagent review unavailable", { sessionID: input.sessionID, cause }).pipe(
             Effect.as(undefined),
-          ),
-        ),
+          )
+        }),
       )
       if (!result) {
         const closed = yield* checkIronGate
         if (!closed) return { decision: "ask" as const, reason: "Subagent review unavailable" }
-        return unevaluated("subagent review unavailable")
+        return unevaluated(failure ? `subagent review unavailable: ${failure}` : "subagent review unavailable")
       }
       yield* recordOutcome(rootID, result)
       return result
