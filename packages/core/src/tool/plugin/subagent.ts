@@ -150,7 +150,15 @@ export const Plugin = {
                   metadata: { agent: agent.id, description: input.description, prompt: input.prompt },
                   ...Permission.invocation(context),
                 })
-                .pipe(Effect.mapError((error) => new ToolFailure({ message: `Subagent denied: ${agent.id}`, error })))
+                .pipe(
+                  Effect.mapError((error) => {
+                    const reason =
+                      "message" in error && typeof error.message === "string" && error.message
+                        ? ` — ${error.message}`
+                        : ""
+                    return new ToolFailure({ message: `Subagent denied: ${agent.id}${reason}`, error })
+                  }),
+                )
 
               const existing =
                 input.sessionID === undefined
@@ -263,8 +271,15 @@ export const Plugin = {
                   prompt: input.prompt,
                   history: output.slice(0, 8000),
                 })
-                .pipe(Effect.orElseSucceed(() => ({ decision: "allow" as const, reason: "" })))
+                .pipe(Effect.orElseSucceed(() => PermissionAuto.unevaluated("subagent review unavailable")))
               if (verdict.decision === "allow") return { sessionID: child.id, status: "completed" as const, output }
+              if (PermissionAuto.isUnevaluated(verdict)) {
+                return {
+                  sessionID: child.id,
+                  status: "completed" as const,
+                  output: `[SECURITY NOTE: Subagent ${agent.id} completed but its work could not be reviewed. Verify its output independently before acting on it. Reason: ${verdict.reason}]\n${output}`,
+                }
+              }
               return {
                 sessionID: child.id,
                 status: "completed" as const,
