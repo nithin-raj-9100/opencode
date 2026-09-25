@@ -182,8 +182,9 @@ test("a slash command's run receives the composer restore callback", async () =>
   }
 })
 
-test("a slash command that returns false reports the refusal to its caller", async () => {
+test.each([false, true])("a slash command reports refusal and restores input (async: %s)", async (async) => {
   let refuse: (() => Promise<void | false>) | undefined
+  const restored: string[] = []
 
   function Harness() {
     const commands = Keymap.useCommands()
@@ -192,11 +193,18 @@ test("a slash command that returns false reports the refusal to its caller", asy
         {
           id: "test.refuse",
           slash: { name: "refuse", arguments: true as const },
-          run: () => false as const,
+          run: (input, _event, restore) => {
+            restored.push(input ?? "")
+            restore?.()
+            return async ? Promise.resolve(false as const) : false
+          },
         },
       ],
     }))
-    refuse = async () => commands().find((command) => command.slash?.name === "refuse")?.run("payload")
+    refuse = async () =>
+      commands()
+        .find((command) => command.slash?.name === "refuse")
+        ?.run("payload", undefined, () => restored.push("restored"))
     return <box />
   }
 
@@ -209,6 +217,44 @@ test("a slash command that returns false reports the refusal to its caller", asy
   ))
   try {
     expect(await refuse!()).toBe(false)
+    expect(restored).toEqual(["payload", "restored"])
+  } finally {
+    app.renderer.destroy()
+  }
+})
+
+test.each([false, true])("Down falls through only when prompt history declines (handled: %s)", async (handled) => {
+  const calls: string[] = []
+
+  function Harness() {
+    Keymap.createLayer(() => ({
+      commands: [{ id: "session.child.first", run: () => void calls.push("picker") }],
+    }))
+    Keymap.createLayer(() => ({
+      priority: 1,
+      commands: [
+        {
+          id: "prompt.history.next",
+          run: () => {
+            calls.push("history")
+            if (!handled) return false
+          },
+        },
+      ],
+    }))
+    return <box />
+  }
+
+  const app = await testRender(() => (
+    <ConfigProvider config={createTuiResolvedConfig()}>
+      <Keymap.Provider>
+        <Harness />
+      </Keymap.Provider>
+    </ConfigProvider>
+  ))
+  try {
+    app.mockInput.pressArrow("down")
+    expect(calls).toEqual(handled ? ["history"] : ["history", "picker"])
   } finally {
     app.renderer.destroy()
   }

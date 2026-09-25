@@ -254,8 +254,12 @@ function createLayer(input: () => KeymapLayer) {
           ...definition,
           name: id,
           opencode: command,
-          run: (context: CommandContext<Renderable, KeyEvent>) =>
-            value.record(id, run(value.input(id), context.event, value.restore(id))),
+          run: (context: CommandContext<Renderable, KeyEvent>) => {
+            const result = run(value.input(id), context.event, value.restore(id))
+            value.record(id, result)
+            // Preserve false so keyboard bindings can fall through to the next command.
+            return result
+          },
           ...(description === undefined ? {} : { desc: description }),
           ...(group === undefined ? {} : { category: group }),
           ...(palette === undefined ? {} : { namespace: "palette" }),
