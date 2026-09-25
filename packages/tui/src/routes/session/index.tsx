@@ -122,7 +122,7 @@ import { useArgs } from "../../context/args"
 import { withTimestampedFallback } from "@opencode/util/session-title-fallback"
 import { useSessionTabs, type ScrollAnchor } from "../../context/session-tabs"
 import { createSingleFlight } from "../../util/single-flight"
-import { PromptNavigator, promptNavigationIndex } from "./prompt-navigator"
+import { createPromptIndex, PromptNavigator, promptNavigationIndex, viewedPromptNumber } from "./prompt-navigator"
 import type { SessionInbox } from "@opencode/schema/session-inbox"
 import { createDelayedPresence } from "../../util/delayed-presence"
 import { SessionLocationMissing } from "./location-missing"
@@ -394,6 +394,8 @@ export function Session(props: {
   const sessionTabs = useSessionTabs()
   const [awayFromBottom, setAwayFromBottom] = createSignal(false)
   const [latestHovered, setLatestHovered] = createSignal(false)
+  // Anchor geometry is not reactive; this ticks whenever the viewport may have moved.
+  const [viewportMoved, markViewportMoved] = createSignal(undefined, { equals: false })
   let ensureAllRowsPending: (() => void)[] | undefined
   createEffect(() => {
     if (!awayFromBottom()) setLatestHovered(false)
@@ -615,6 +617,7 @@ export function Session(props: {
     awayTimer = setTimeout(() => {
       awayTimer = undefined
       if (!scroll || scroll.isDestroyed) return
+      markViewportMoved()
       const away = preserveWindow || isAwayFromBottom()
       setAwayFromBottom(away)
       if (!away) {
@@ -839,23 +842,44 @@ export function Session(props: {
       alignMessage(messageID, Math.max(0, y - (message?.type === "assistant" ? 1 : 0)))
     })
 
-  const userPrompts = createMemo(() => messages().filter((m) => m.type === "user"))
+  const promptIDs = createPromptIndex({
+    sessionID: () => route.sessionID,
+    connected: () => client.connection.status() === "connected",
+    messages,
+    list: (query) =>
+      client.api.message.list(
+        query.cursor
+          ? { sessionID: query.sessionID, type: "user", limit: 200, cursor: query.cursor }
+          : { sessionID: query.sessionID, type: "user", limit: 200, order: "asc" },
+      ),
+  })
 
   const currentPromptNumber = createMemo(() => {
-    const prompts = userPrompts()
+    viewportMoved()
+    const prompts = promptIDs()
     if (prompts.length === 0) return 0
     const active = navigationMessage()
-    if (!active) return prompts.length
-    const idx = prompts.findIndex((p) => p.id === active)
-    return idx === -1 ? prompts.length : idx + 1
+    const index = active ? prompts.indexOf(active) : -1
+    if (index !== -1) return index + 1
+    if (!awayFromBottom() || !scroll || scroll.isDestroyed) return prompts.length
+    return viewedPromptNumber({
+      prompts,
+      messages: messages(),
+      positions: anchors.messagePositions(),
+      top: scroll.viewport.y,
+    })
   })
 
   const navigatePrompt = (direction: "prev" | "next") => {
-    const prompts = userPrompts()
-    const targetIdx = promptNavigationIndex(currentPromptNumber(), prompts.length, direction)
-    if (targetIdx === undefined) return
-    const target = prompts[targetIdx]
-    if (target) jumpToMessage(target.id)
+    const prompts = promptIDs()
+    const index = promptNavigationIndex(currentPromptNumber(), prompts.length, direction)
+    if (index !== undefined) revealPrompt(prompts[index]!)
+  }
+
+  // Older prompts may not be loaded yet; page history in until the target exists, then jump.
+  const revealPrompt = (messageID: string) => {
+    if (data.session.message.get(route.sessionID, messageID)) return jumpToMessage(messageID)
+    prependHistory(0, () => revealPrompt(messageID))
   }
 
   function toBottom() {
@@ -1597,7 +1621,7 @@ export function Session(props: {
             <box flexGrow={1} minHeight={0} position="relative">
               <PromptNavigator
                 current={currentPromptNumber()}
-                total={userPrompts().length}
+                total={promptIDs().length}
                 onPrevious={() => navigatePrompt("prev")}
                 onNext={() => navigatePrompt("next")}
               />
