@@ -28,7 +28,7 @@ export function createPromptIndex(input: {
   messages: Accessor<readonly SessionMessageInfo[]>
   list: (query: { sessionID: string; cursor?: string }) => Promise<{
     data: readonly { id: string }[]
-    cursor: { next?: string }
+    cursor: { next?: string | null }
   }>
 }) {
   const [indexed, setIndexed] = createSignal<{ sessionID: string; ids: readonly string[] }>()
@@ -45,7 +45,7 @@ export function createPromptIndex(input: {
         const page = await input.list({ sessionID, cursor })
         if (current !== generation) return
         ids.push(...page.data.map((message) => message.id))
-        cursor = page.cursor.next
+        cursor = page.cursor.next ?? undefined
       } while (cursor)
       setIndexed({ sessionID, ids })
     })().catch(() => undefined)
