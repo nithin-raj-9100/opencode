@@ -36,7 +36,7 @@ export function epilogue(input: { readonly session?: SessionEpilogue; readonly u
       ? [`  ${dim}Run ${reset}${bold}opencode${reset}${dim} to use ${reset}${bold}${input.updatedVersion}${reset}`, ""]
       : []),
     ...(input.session
-      ? [row("Session", input.session.title), row("Continue", `opencode -s ${input.session.sessionID}`), ""]
+      ? [row("Session", input.session.title), row("Continue", `oc3 -s ${input.session.sessionID}`), ""]
       : []),
   ].join("\n")
 }
