@@ -101,6 +101,7 @@ export const PermissionHandler = HttpApiBuilder.group(Api, "server.permission", 
           const session = yield* sessionInfo(sessions, ctx.params.sessionID)
           const data = yield* PermissionAuto.Service.use((auto) => auto.denials(ctx.params.sessionID)).pipe(
             instances.provide(session),
+            locationErrors,
           )
           return { data }
         }),
@@ -111,6 +112,7 @@ export const PermissionHandler = HttpApiBuilder.group(Api, "server.permission", 
           const session = yield* sessionInfo(sessions, ctx.params.sessionID)
           const data = yield* PermissionAuto.Service.use((auto) => auto.status(ctx.params.sessionID)).pipe(
             instances.provide(session),
+            locationErrors,
           )
           return { data }
         }),
