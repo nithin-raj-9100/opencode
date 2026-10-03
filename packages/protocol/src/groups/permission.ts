@@ -248,7 +248,7 @@ export const makePermissionGroup = <
             }),
           ),
         }),
-        error: SessionNotFoundError,
+        error: [SessionNotFoundError, LocationNotFoundError],
       }).annotateMerge(
         OpenApi.annotations({
           identifier: "v2.session.permission.denials",
@@ -269,7 +269,7 @@ export const makePermissionGroup = <
             disabled: Schema.Boolean,
           }),
         }),
-        error: SessionNotFoundError,
+        error: [SessionNotFoundError, LocationNotFoundError],
       }).annotateMerge(
         OpenApi.annotations({
           identifier: "v2.session.permission.auto_status",
