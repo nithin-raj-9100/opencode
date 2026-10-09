@@ -7,7 +7,7 @@ import { SessionID } from "./session-id.js"
 
 export const MaxObjectiveChars = 4000
 
-export const ID = Schema.String.check(Schema.isStartsWith("gol_")).pipe(
+export const ID = Schema.String.check(Schema.isStartingWith("gol_")).pipe(
   Schema.brand("Session.Goal.ID"),
   statics((schema) => ({
     create: () => schema.make("gol_" + descending()),
