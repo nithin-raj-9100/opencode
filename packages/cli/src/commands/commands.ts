@@ -336,7 +336,7 @@ const Root = Spec.make(typeof OPENCODE_CLI_NAME === "string" ? OPENCODE_CLI_NAME
           description: "Print the built-in auto mode rules",
           params: {
             ...ServerParams,
-            label: Flag.string("label").pipe(
+            label: Flag.String("label").pipe(
               Flag.withDescription("Only print rules whose label starts with this text (case-insensitive)"),
               Flag.optional,
             ),
@@ -354,7 +354,7 @@ const Root = Spec.make(typeof OPENCODE_CLI_NAME === "string" ? OPENCODE_CLI_NAME
           description: "Remove custom auto mode rules from user settings",
           params: {
             ...ServerParams,
-            yes: Flag.boolean("yes").pipe(
+            yes: Flag.Boolean("yes").pipe(
               Flag.withAlias("y"),
               Flag.withDescription("Skip the confirmation prompt"),
               Flag.withDefault(false),
