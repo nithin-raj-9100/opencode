@@ -705,7 +705,7 @@ export type SessionLogOutput =
           readonly location?:
             | {
                 readonly directory: AbsolutePath
-                readonly workspaceID?: (string & Brand.Brand<"Workspace.ID">) | undefined
+                readonly workspaceID?: Workspace.ID | undefined
               }
             | undefined
           readonly data: { readonly sessionID: Session.ID; readonly goal: SessionGoal.Info }
@@ -719,7 +719,7 @@ export type SessionLogOutput =
           readonly location?:
             | {
                 readonly directory: AbsolutePath
-                readonly workspaceID?: (string & Brand.Brand<"Workspace.ID">) | undefined
+                readonly workspaceID?: Workspace.ID | undefined
               }
             | undefined
           readonly data: { readonly sessionID: Session.ID }
