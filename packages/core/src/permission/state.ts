@@ -82,7 +82,6 @@ function isBroadExecutionAllow(resource: string) {
 
 export function isDangerousAllow(action: string, resource: string) {
   if (action === "monitor") return true
-  if (action === "subagent" || action === "agent") return true
   if (action !== "shell" && action !== "bash") return false
   if (resource === "*" || resource === "Bash(*)" || resource === "shell(*)") return true
   return isBroadExecutionAllow(resource)
