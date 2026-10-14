@@ -8,6 +8,8 @@ import { llmClient } from "./effect/app-node-platform.js"
 import { App } from "./app.js"
 import { ModelResolver } from "./model-resolver.js"
 import { Model } from "./model.js"
+import { Provider } from "./provider.js"
+import { Tool } from "./tool.js"
 
 export interface TextInput {
   readonly system?: string
@@ -52,6 +54,7 @@ export const layer = Layer.effect(
     const llm = yield* LLMClient.Service
     const resolver = yield* ModelResolver.Service
     const app = yield* App.Metadata
+    const registry = yield* Tool.Service
 
     const runText = Effect.fn("Generate.text")(function* (input: TextInput) {
       const resolved = yield* resolver.resolve(input.model).pipe(
@@ -78,6 +81,11 @@ export const layer = Layer.effect(
             ? `Model unavailable: ${input.model.providerID}/${input.model.id}`
             : "No model specified and no supported model is available",
         })
+      // The OpenCode gateway rejects free-tier requests that do not advertise OpenCode's full tool set as
+      // "not from within OpenCode". Its free backends accept only tool_choice "auto", so no choice is sent;
+      // tool calls in the reply are never executed because only the text is returned.
+      const free = resolved.ref.providerID === Provider.ID.opencode && !resolved.cost.some((cost) => cost.input > 0)
+      const tools = free ? (yield* registry.snapshot()).definitions : []
       const response = yield* llm
         .generate(
           LLM.request({
@@ -86,6 +94,7 @@ export const layer = Layer.effect(
             prompt: input.prompt,
             ...(input.generation ? { generation: input.generation } : {}),
             ...(input.promptCacheKey ? { promptCacheKey: input.promptCacheKey } : {}),
+            ...(tools.length > 0 ? { tools } : {}),
             ...(input.session
               ? {
                   http: {
@@ -142,5 +151,5 @@ export const layer = Layer.effect(
 export const node = makeLocationNode({
   service: Service,
   layer,
-  deps: [ModelResolver.node, llmClient],
+  deps: [ModelResolver.node, Tool.node, llmClient],
 })

@@ -37,11 +37,11 @@ opencode run --auto "Refactor this module"
 Each tool call in auto mode is decided in this order, and the first match wins:
 
 1. A `"deny"` rule blocks the call, even over a saved approval.
-2. Reads and file edits always run: read, grep, glob, list, and access to
-   folders outside the project, and edit, write, and patch on any path —
-   including `.env`, home dotfiles such as `~/.zshrc`, temporary folders, and
-   OpenCode's own config. `"ask"` rules on these tools do not apply in auto
-   mode.
+2. Reads, file edits, and subagent launches always run: read, grep, glob,
+   list, and access to folders outside the project, edit, write, and patch on
+   any path — including `.env`, home dotfiles such as `~/.zshrc`, temporary
+   folders, and OpenCode's own config — and delegation to subagents. `"ask"`
+   rules on these tools do not apply in auto mode.
 3. An `"ask"` rule that names specific content (for example
    `"git push *": "ask"`) prompts you. A blanket `"*": "ask"` does not; those
    calls go to the classifier.
@@ -49,10 +49,10 @@ Each tool call in auto mode is decided in this order, and the first match wins:
    rule matches.
 5. Any other `"allow"` rule approves the call. On entering auto mode, allow
    rules that grant arbitrary code execution are suspended: `*`, blanket shell,
-   wildcarded interpreters and package-manager run commands, and subagent
-   allows. Narrow rules such as `"bun typecheck": "allow"` stay in effect.
-6. Everything else goes to the classifier: shell commands, subagent launches,
-   web fetches and searches, and MCP tools.
+   and wildcarded interpreters and package-manager run commands. Narrow rules
+   such as `"bun typecheck": "allow"` stay in effect.
+6. Everything else goes to the classifier: shell commands, web fetches and
+   searches, and MCP tools.
 
 To keep auto mode away from specific files, add a `"deny"` rule for them, for
 example `"edit": { "secrets/*": "deny" }`.

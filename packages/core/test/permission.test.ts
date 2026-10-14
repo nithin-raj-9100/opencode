@@ -335,14 +335,14 @@ describe("Permission", () => {
           assertion({ id: Permission.ID.create("per_auto_subagent"), action: "subagent", resources: ["general"] }),
         ),
       ).toMatchObject({
-        effect: "ask",
+        effect: "allow",
       })
       expect(
         yield* service.ask(
           assertion({ id: Permission.ID.create("per_auto_subagent2"), action: "subagent", resources: ["explore"] }),
         ),
       ).toMatchObject({
-        effect: "ask",
+        effect: "allow",
       })
     }),
   )
@@ -466,7 +466,7 @@ describe("Permission", () => {
     }),
   )
 
-  it.effect("classifies subagent launches in auto mode", () =>
+  it.effect("allows subagent launches without the classifier in auto mode", () =>
     Effect.gen(function* () {
       yield* setup([{ action: "subagent", resource: "*", effect: "ask" }])
       const autostate = yield* PermissionAutoState.Service
@@ -479,7 +479,7 @@ describe("Permission", () => {
       const service = yield* Permission.Service
       yield* service.assert(assertion({ action: "subagent", resources: ["general"] }))
       yield* service.assert(assertion({ action: "subagent", resources: ["explore"] }))
-      expect(classified).toEqual(["general", "explore"])
+      expect(classified).toEqual([])
       expect(yield* service.list()).toEqual([])
     }),
   )

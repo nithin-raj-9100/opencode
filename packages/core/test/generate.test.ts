@@ -1,5 +1,5 @@
 import { expect } from "bun:test"
-import { LanguageModel, LLMClient } from "@opencode/ai"
+import { LanguageModel, LLMClient, ToolDefinition } from "@opencode/ai"
 import { RequestExecutor } from "@opencode/ai/route"
 import { OpenAIChat } from "@opencode/ai/protocols"
 import { TestLLM } from "@opencode/ai/testing"
@@ -10,6 +10,8 @@ import { Integration } from "@opencode/core/integration"
 import { ModelResolver } from "@opencode/core/model-resolver"
 import { ID, Info, Model, Ref } from "@opencode/core/model"
 import { Provider } from "@opencode/core/provider"
+import { Tool } from "@opencode/core/tool"
+import { Money } from "@opencode/schema/money"
 import { Npm } from "@opencode/util/npm"
 import { Effect, Layer } from "effect"
 import { HttpClient, HttpClientResponse } from "effect/http"
@@ -19,13 +21,31 @@ const selected = Info.make({
   ...Info.default(Provider.ID.make("test-provider"), ID.make("gemini")),
   package: Provider.aisdk("@ai-sdk/perplexity"),
 })
+const free = Info.make({
+  ...Info.default(Provider.ID.opencode, ID.make("muse-spark-free")),
+  package: Provider.aisdk("@ai-sdk/perplexity"),
+})
+const paid = Info.make({
+  ...Info.default(Provider.ID.opencode, ID.make("muse-spark")),
+  package: Provider.aisdk("@ai-sdk/perplexity"),
+  cost: [
+    {
+      input: Money.USDPerMillionTokens.make(1),
+      output: Money.USDPerMillionTokens.make(2),
+      cache: { read: Money.USDPerMillionTokens.make(0.1), write: Money.USDPerMillionTokens.make(0.5) },
+    },
+  ],
+})
+const catalog = [selected, free, paid]
+const shell = ToolDefinition.make({ name: "shell", description: "Run a command", inputSchema: { type: "object" } })
 const runtime = LanguageModel.make({ id: "gemini", provider: "test-provider", route: OpenAIChat.route })
 
 const providers = Layer.mock(Provider.Service, {
   get: () => Effect.undefined,
 })
 const models = Layer.mock(Model.Service, {
-  get: () => Effect.succeed(selected),
+  get: (providerID, modelID) =>
+    Effect.succeed(catalog.find((model) => model.providerID === providerID && model.id === modelID) ?? selected),
 })
 const integrations = Layer.mock(Integration.Service, {
   revision: () => 0,
@@ -62,10 +82,13 @@ const aisdk = Layer.mock(AISDK.Service, {
   },
   model: () => Effect.succeed(runtime),
 })
+const tools = Layer.mock(Tool.Service, {
+  snapshot: () => Effect.succeed({ definitions: [shell], execute: () => Effect.die("unused") }),
+})
 const client = TestLLM.testLayer({ fallback: TestLLM.text("OK", "generate") })
 
 const resolver = ModelResolver.layer.pipe(Layer.provide(Layer.mergeAll(providers, models, integrations, npm, aisdk)))
-const it = testEffect(Generate.layer.pipe(Layer.provideMerge(Layer.merge(resolver, client))))
+const it = testEffect(Generate.layer.pipe(Layer.provideMerge(Layer.mergeAll(resolver, client, tools))))
 const resolverIt = testEffect(resolver)
 
 it.effect("loads dynamic AI SDK models", () =>
@@ -99,6 +122,22 @@ it.effect("sends session routing headers when a session is given", () =>
       "x-opencode-session": "ses_child",
       "x-opencode-client": "opencode",
     })
+  }),
+)
+
+it.effect("advertises the tool set only for free OpenCode gateway models", () =>
+  Effect.gen(function* () {
+    const generate = yield* Generate.Service
+    const llm = yield* TestLLM.Test
+    const request = (model: Info) =>
+      generate
+        .text({ prompt: "Return exactly OK", model: Ref.make({ providerID: model.providerID, id: model.id }) })
+        .pipe(Effect.andThen(llm.requests()), Effect.map((requests) => requests.at(-1)))
+
+    const gateway = yield* request(free)
+    expect(gateway?.tools.map((tool) => tool.name)).toEqual(["shell"])
+    expect(gateway?.toolChoice).toBeUndefined()
+    for (const model of [paid, selected]) expect((yield* request(model))?.tools).toEqual([])
   }),
 )
 
@@ -163,7 +202,7 @@ testEffect(Layer.empty).effect("attributes each stateless completion without cre
           }),
         ).toBe("OK")
       }
-    }).pipe(Effect.provide(Generate.layer.pipe(Layer.provide(Layer.merge(resolver, native)))))
+    }).pipe(Effect.provide(Generate.layer.pipe(Layer.provide(Layer.mergeAll(resolver, native, tools)))))
     expect(sessions).toHaveLength(2)
     expect(sessions[0]).toStartWith("ses_")
     expect(sessions[1]).not.toBe(sessions[0])
