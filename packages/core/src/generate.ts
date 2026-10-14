@@ -13,6 +13,8 @@ import { Integration } from "./integration.js"
 import { ModelResolver } from "./model-resolver.js"
 import { Model } from "./model.js"
 import { ModelRetry } from "./model-retry.js"
+import { Provider } from "./provider.js"
+import { Tool } from "./tool.js"
 
 export interface TextInput {
   readonly system?: string
@@ -95,6 +97,7 @@ export const layer = Layer.effect(
     const images = yield* ImageClient.Service
     const decisionClient = yield* DecisionClient.Service
     const app = yield* App.Metadata
+    const registry = yield* Tool.Service
 
     const runText = Effect.fn("Generate.text")(function* (input: TextInput) {
       const resolved = yield* resolver.resolve(input.model).pipe(
@@ -118,6 +121,11 @@ export const layer = Layer.effect(
       if (!resolved && input.model) return yield* missing(input.model, "chat")
       if (!resolved)
         return yield* new UnavailableError({ message: "No model specified and no supported model is available" })
+      // The OpenCode gateway rejects free-tier requests that do not advertise OpenCode's full tool set as
+      // "not from within OpenCode". Its free backends accept only tool_choice "auto", so no choice is sent;
+      // tool calls in the reply are never executed because only the text is returned.
+      const free = resolved.ref.providerID === Provider.ID.opencode && !resolved.cost.some((cost) => cost.input > 0)
+      const tools = free ? (yield* registry.snapshot()).definitions : []
       const response = yield* llm
         .generate(
           ai.request({
@@ -126,6 +134,7 @@ export const layer = Layer.effect(
             prompt: input.prompt,
             ...(input.generation ? { generation: input.generation } : {}),
             ...(input.promptCacheKey ? { promptCacheKey: input.promptCacheKey } : {}),
+            ...(tools.length > 0 ? { tools } : {}),
             ...(input.session
               ? {
                   http: {
@@ -303,5 +312,5 @@ function failureReason(tag: AIError["reason"]["_tag"], status: number | undefine
 export const node = makeLocationNode({
   service: Service,
   layer,
-  deps: [ModelResolver.node, Model.node, llmClient, requestExecutor],
+  deps: [ModelResolver.node, Model.node, Tool.node, llmClient, requestExecutor],
 })

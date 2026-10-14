@@ -105,8 +105,8 @@ function isCriticalTarget(target: string, directory: string) {
 }
 
 /**
- * Decision order in auto mode, first match wins: deny rule, read or file edit (any path, never
- * reviewed), content-scoped ask rule, critical removal (classifier even when allowed), allow
+ * Decision order in auto mode, first match wins: deny rule, read, file edit (any path) or subagent
+ * launch (never reviewed), content-scoped ask rule, critical removal (classifier even when allowed), allow
  * rule, classifier.
  */
 export function autoGate(input: {
@@ -118,7 +118,8 @@ export function autoGate(input: {
   allowed: boolean
 }) {
   if (input.denied) return { effect: "deny" as const, classify: false }
-  if (isSafeTool(input.action) || isEditAction(input.action)) return { effect: "allow" as const, classify: false }
+  if (isSafeTool(input.action) || isEditAction(input.action) || isSubagentAction(input.action))
+    return { effect: "allow" as const, classify: false }
   if (input.ask) return { effect: "ask" as const, classify: false }
   if (isCriticalRemoval(input.action, input.resources, input.directory)) return { effect: "ask" as const, classify: true }
   if (input.allowed) return { effect: "allow" as const, classify: false }
