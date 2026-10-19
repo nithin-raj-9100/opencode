@@ -15,6 +15,7 @@ export interface Interface {
   readonly activate: (sessionID: SessionID) => Effect.Effect<void>
   readonly deactivate: (sessionID: SessionID) => Effect.Effect<void>
   readonly bindClassifier: (classify: Classifier | undefined) => Effect.Effect<void>
+  readonly bindDefaultGate: (gate: Effect.Effect<boolean> | undefined) => Effect.Effect<void>
   readonly classify: (request: Permission.Request) => Effect.Effect<Verdict | undefined>
 }
 
@@ -99,20 +100,45 @@ export function shouldStripAllow(
   return false
 }
 
+function autoDefaultEnabled() {
+  const value = process.env.OPENCODE_AUTO_DEFAULT
+  return value === "1" || value?.toLowerCase() === "true"
+}
+
 const layer = Layer.effect(
   Service,
   Effect.gen(function* () {
     const active = new Set<SessionID>()
+    // Explicitly disabled sessions; OPENCODE_AUTO_DEFAULT must never re-enable them.
+    const disabled = new Set<SessionID>()
     let classifier: Classifier | undefined
-    const isActive: Interface["isActive"] = (sessionID) => Effect.succeed(active.has(sessionID))
-    const activate: Interface["activate"] = (sessionID) => Effect.sync(() => void active.add(sessionID))
-    const deactivate: Interface["deactivate"] = (sessionID) => Effect.sync(() => void active.delete(sessionID))
+    let defaultGate: Effect.Effect<boolean> | undefined
+    const isActive: Interface["isActive"] = (sessionID) =>
+      Effect.suspend(() => {
+        if (active.has(sessionID)) return Effect.succeed(true)
+        if (disabled.has(sessionID) || !autoDefaultEnabled()) return Effect.succeed(false)
+        return defaultGate ?? Effect.succeed(true)
+      })
+    const activate: Interface["activate"] = (sessionID) =>
+      Effect.sync(() => {
+        active.add(sessionID)
+        disabled.delete(sessionID)
+      })
+    const deactivate: Interface["deactivate"] = (sessionID) =>
+      Effect.sync(() => {
+        active.delete(sessionID)
+        disabled.add(sessionID)
+      })
+    const bindDefaultGate: Interface["bindDefaultGate"] = (gate) =>
+      Effect.sync(() => {
+        defaultGate = gate
+      })
     const bindClassifier: Interface["bindClassifier"] = (classify) =>
       Effect.sync(() => {
         classifier = classify
       })
     const classify: Interface["classify"] = (request) => (classifier ? classifier(request) : Effect.succeed(undefined))
-    return Service.of({ isActive, activate, deactivate, bindClassifier, classify })
+    return Service.of({ isActive, activate, deactivate, bindClassifier, bindDefaultGate, classify })
   }),
 )
 
