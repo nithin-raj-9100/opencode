@@ -18,6 +18,7 @@ import { AbsolutePath } from "@opencode/core/schema"
 import { Session } from "@opencode/core/session"
 import { SessionTable } from "@opencode/core/session/sql"
 import { SessionStore } from "@opencode/core/session/store"
+import { SessionEvent } from "@opencode/core/session/event"
 import { Document, Info, type Entry } from "@opencode/schema/config"
 import { ConfigPermissionAuto } from "@opencode/schema/config/permission-auto"
 import { location } from "./fixture/location"
@@ -221,5 +222,101 @@ describe("PermissionAuto service", () => {
       expect(PermissionAuto.isUnevaluated(review)).toBe(true)
       if (review.decision === "deny") expect(review.reason).toContain("down")
     }),
+  )
+})
+
+const withAutoDefault = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
+  Effect.acquireUseRelease(
+    Effect.sync(() => {
+      const previous = process.env.OPENCODE_AUTO_DEFAULT
+      process.env.OPENCODE_AUTO_DEFAULT = "1"
+      return previous
+    }),
+    () => effect,
+    (previous) =>
+      Effect.sync(() => {
+        if (previous === undefined) delete process.env.OPENCODE_AUTO_DEFAULT
+        else process.env.OPENCODE_AUTO_DEFAULT = previous
+      }),
+  )
+
+const created = (sessionID: Session.ID, parentID?: Session.ID) =>
+  Effect.gen(function* () {
+    const bus = yield* Bus.Service
+    yield* bus.publish(SessionEvent.Created, {
+      sessionID,
+      parentID,
+      projectID: Project.ID.global,
+      location: { directory: AbsolutePath.make("/project") },
+      slug: sessionID,
+      version: "test",
+    })
+  })
+
+describe("PermissionAuto OPENCODE_AUTO_DEFAULT", () => {
+  it.effect("leaves new sessions off when the variable is unset", () =>
+    Effect.gen(function* () {
+      const id = Session.ID.make("ses_default_unset")
+      yield* created(id)
+      expect(yield* (yield* PermissionAuto.Service).enabled(id)).toBe(false)
+    }),
+  )
+
+  it.effect("arms new root sessions when the variable is set", () =>
+    withAutoDefault(
+      Effect.gen(function* () {
+        const id = Session.ID.make("ses_default_root")
+        yield* created(id)
+        expect(yield* (yield* PermissionAuto.Service).enabled(id)).toBe(true)
+      }),
+    ),
+  )
+
+  it.effect("keeps an explicit disable made before creation", () =>
+    withAutoDefault(
+      Effect.gen(function* () {
+        const id = Session.ID.make("ses_default_disabled_first")
+        const auto = yield* PermissionAuto.Service
+        yield* auto.set(id, false)
+        yield* created(id)
+        expect(yield* auto.enabled(id)).toBe(false)
+      }),
+    ),
+  )
+
+  it.effect("lets explicit choices override the default afterwards", () =>
+    withAutoDefault(
+      Effect.gen(function* () {
+        const id = Session.ID.make("ses_default_override")
+        const auto = yield* PermissionAuto.Service
+        yield* created(id)
+        yield* auto.set(id, false)
+        expect(yield* auto.enabled(id)).toBe(false)
+        yield* auto.set(id, true)
+        expect(yield* auto.enabled(id)).toBe(true)
+      }),
+    ),
+  )
+
+  it.effect("does not re-arm a disabled parent from a child session", () =>
+    withAutoDefault(
+      Effect.gen(function* () {
+        yield* setup
+        const auto = yield* PermissionAuto.Service
+        yield* auto.set(SESSION, false)
+        yield* created(Session.ID.make("ses_default_child"), SESSION)
+        expect(yield* auto.enabled(SESSION)).toBe(false)
+      }),
+    ),
+  )
+
+  itDisabled.effect("respects disableAutoMode", () =>
+    withAutoDefault(
+      Effect.gen(function* () {
+        const id = Session.ID.make("ses_default_settings_off")
+        yield* created(id)
+        expect(yield* (yield* PermissionAuto.Service).enabled(id)).toBe(false)
+      }),
+    ),
   )
 })
