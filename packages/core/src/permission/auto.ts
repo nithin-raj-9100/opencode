@@ -12,8 +12,6 @@ import { Config } from "../config.js"
 import { Generate } from "../generate.js"
 import { InstructionDiscovery } from "../instruction-discovery.js"
 import { Location } from "../location.js"
-import { LocationServiceMap } from "../location-service-map.js"
-import { SessionEvent } from "../session/event.js"
 import { SessionMessage } from "../session/message.js"
 import { SessionStore } from "../session/store.js"
 import { Tool } from "../tool.js"
@@ -650,11 +648,6 @@ Be concise and constructive. Only comment on rules that could be improved. If al
 Custom rules:
 `
 
-function autoDefaultEnabled() {
-  const value = process.env.OPENCODE_AUTO_DEFAULT
-  return value === "1" || value?.toLowerCase() === "true"
-}
-
 interface Breaker {
   readonly consecutive: number
   readonly total: number
@@ -720,13 +713,8 @@ const layer = Layer.effect(
     const enabled: Interface["enabled"] = (sessionID) =>
       root(sessionID).pipe(Effect.flatMap((id) => autostate.isActive(id)))
 
-    // Root sessions whose mode was chosen through the auto endpoint (TUI toggle, `--auto`).
-    // OPENCODE_AUTO_DEFAULT only arms sessions with no explicit choice, so an explicit disable sticks.
-    const chosen = new Map<SessionID, boolean>()
-
     const set: Interface["set"] = Effect.fn("PermissionAuto.set")(function* (sessionID, value) {
       const id = yield* root(sessionID)
-      chosen.set(id, value)
       if (!value) return yield* autostate.deactivate(id)
       if ((yield* readSettings()).disableAutoMode === true) {
         yield* Effect.logWarning("reviewed auto mode is disabled by settings", { sessionID })
@@ -735,32 +723,6 @@ const layer = Layer.effect(
       yield* autostate.activate(id)
       if (!remotes.has(id)) remotes.set(id, yield* git(["remote", "-v"]))
     })
-
-    const armByDefault = Effect.fn("PermissionAuto.armByDefault")(function* (sessionID: SessionID) {
-      const id = yield* root(sessionID)
-      if (chosen.has(id)) return
-      if ((yield* readSettings()).disableAutoMode === true) return
-      if (!remotes.has(id)) remotes.set(id, yield* git(["remote", "-v"]))
-      if (chosen.has(id)) return
-      yield* autostate.activate(id)
-    })
-
-    const unsubscribeDefault = yield* bus.listen((event) => {
-      if (event.type !== SessionEvent.Created.type && event.type !== SessionEvent.Forked.type) return Effect.void
-      if (!autoDefaultEnabled()) return Effect.void
-      const data = event.data as {
-        readonly sessionID: SessionID
-        readonly parentID?: SessionID
-        readonly location?: Location.Ref
-      }
-      const at = event.location ?? data.location
-      if (!at) return Effect.void
-      const ref = LocationServiceMap.canonical(at)
-      if (ref.directory !== location.directory || ref.workspaceID !== location.workspaceID) return Effect.void
-      if (event.type === SessionEvent.Created.type && data.parentID !== undefined) return Effect.void
-      return armByDefault(data.sessionID)
-    })
-    yield* Effect.addFinalizer(() => unsubscribeDefault)
 
     const recordOutcome = (sessionID: SessionID, review: Permission.Review) =>
       Effect.sync(() => {
@@ -1082,6 +1044,8 @@ ${sample}`,
 
     yield* autostate.bindClassifier(review)
     yield* Effect.addFinalizer(() => autostate.bindClassifier(undefined))
+    yield* autostate.bindDefaultGate(readSettings().pipe(Effect.map((settings) => settings.disableAutoMode !== true)))
+    yield* Effect.addFinalizer(() => autostate.bindDefaultGate(undefined))
     return Service.of({ set, enabled, review, handback, inspect, denials, status, defaults, effective, critique })
   }),
 )
