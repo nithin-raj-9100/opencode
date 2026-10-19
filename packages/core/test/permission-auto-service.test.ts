@@ -18,7 +18,6 @@ import { AbsolutePath } from "@opencode/core/schema"
 import { Session } from "@opencode/core/session"
 import { SessionTable } from "@opencode/core/session/sql"
 import { SessionStore } from "@opencode/core/session/store"
-import { SessionEvent } from "@opencode/core/session/event"
 import { Document, Info, type Entry } from "@opencode/schema/config"
 import { ConfigPermissionAuto } from "@opencode/schema/config/permission-auto"
 import { location } from "./fixture/location"
@@ -240,56 +239,47 @@ const withAutoDefault = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
       }),
   )
 
-const created = (sessionID: Session.ID, parentID?: Session.ID) =>
+const child = (id: Session.ID, parent: Session.ID) =>
   Effect.gen(function* () {
-    const bus = yield* Bus.Service
-    yield* bus.publish(SessionEvent.Created, {
-      sessionID,
-      parentID,
-      projectID: Project.ID.global,
-      location: { directory: AbsolutePath.make("/project") },
-      slug: sessionID,
-      version: "test",
-    })
+    const { db } = yield* Database.Service
+    yield* db
+      .insert(SessionTable)
+      .values({
+        id,
+        parent_id: parent,
+        project_id: Project.ID.global,
+        slug: id,
+        directory: "/project",
+        title: id,
+        version: "test",
+        agent: "test",
+        model: { id: "session-model", providerID: "session-provider" },
+      })
+      .onConflictDoNothing()
+      .run()
+      .pipe(Effect.orDie)
   })
 
 describe("PermissionAuto OPENCODE_AUTO_DEFAULT", () => {
-  it.effect("leaves new sessions off when the variable is unset", () =>
+  it.effect("leaves sessions off when the variable is unset", () =>
     Effect.gen(function* () {
-      const id = Session.ID.make("ses_default_unset")
-      yield* created(id)
-      expect(yield* (yield* PermissionAuto.Service).enabled(id)).toBe(false)
+      expect(yield* (yield* PermissionAuto.Service).enabled(Session.ID.make("ses_default_unset"))).toBe(false)
     }),
   )
 
-  it.effect("arms new root sessions when the variable is set", () =>
+  it.effect("enables a session the server has never seen when the variable is set", () =>
     withAutoDefault(
       Effect.gen(function* () {
-        const id = Session.ID.make("ses_default_root")
-        yield* created(id)
-        expect(yield* (yield* PermissionAuto.Service).enabled(id)).toBe(true)
+        expect(yield* (yield* PermissionAuto.Service).enabled(Session.ID.make("ses_default_fresh"))).toBe(true)
       }),
     ),
   )
 
-  it.effect("keeps an explicit disable made before creation", () =>
+  it.effect("keeps an explicit disable", () =>
     withAutoDefault(
       Effect.gen(function* () {
-        const id = Session.ID.make("ses_default_disabled_first")
+        const id = Session.ID.make("ses_default_disabled")
         const auto = yield* PermissionAuto.Service
-        yield* auto.set(id, false)
-        yield* created(id)
-        expect(yield* auto.enabled(id)).toBe(false)
-      }),
-    ),
-  )
-
-  it.effect("lets explicit choices override the default afterwards", () =>
-    withAutoDefault(
-      Effect.gen(function* () {
-        const id = Session.ID.make("ses_default_override")
-        const auto = yield* PermissionAuto.Service
-        yield* created(id)
         yield* auto.set(id, false)
         expect(yield* auto.enabled(id)).toBe(false)
         yield* auto.set(id, true)
@@ -298,14 +288,16 @@ describe("PermissionAuto OPENCODE_AUTO_DEFAULT", () => {
     ),
   )
 
-  it.effect("does not re-arm a disabled parent from a child session", () =>
+  it.effect("applies an explicitly disabled root to its child sessions", () =>
     withAutoDefault(
       Effect.gen(function* () {
         yield* setup
+        const id = Session.ID.make("ses_default_child")
+        yield* child(id, SESSION)
         const auto = yield* PermissionAuto.Service
+        expect(yield* auto.enabled(id)).toBe(true)
         yield* auto.set(SESSION, false)
-        yield* created(Session.ID.make("ses_default_child"), SESSION)
-        expect(yield* auto.enabled(SESSION)).toBe(false)
+        expect(yield* auto.enabled(id)).toBe(false)
       }),
     ),
   )
@@ -313,9 +305,7 @@ describe("PermissionAuto OPENCODE_AUTO_DEFAULT", () => {
   itDisabled.effect("respects disableAutoMode", () =>
     withAutoDefault(
       Effect.gen(function* () {
-        const id = Session.ID.make("ses_default_settings_off")
-        yield* created(id)
-        expect(yield* (yield* PermissionAuto.Service).enabled(id)).toBe(false)
+        expect(yield* (yield* PermissionAuto.Service).enabled(Session.ID.make("ses_default_settings_off"))).toBe(false)
       }),
     ),
   )
