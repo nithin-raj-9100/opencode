@@ -13,6 +13,7 @@ import { Artifact } from "@opencode/schema/artifact"
 import { Automation } from "@opencode/schema/automation"
 import { Command } from "@opencode/schema/command"
 import { Config } from "@opencode/schema/config"
+import { ConfigModel } from "@opencode/schema/config/model"
 import { Credential } from "@opencode/schema/credential"
 import { Event } from "@opencode/schema/event"
 import { EventLog } from "@opencode/schema/event-log"
@@ -73,6 +74,7 @@ const effectTypeReferences = [
   ...namespaceTypes("Automation", "@opencode/schema/automation", Automation),
   ...namespaceTypes("Command", "@opencode/schema/command", Command),
   ...namespaceTypes("Config", "@opencode/schema/config", Config),
+  ...namespaceTypes("ConfigModel", "@opencode/schema/config/model", ConfigModel),
   ...namespaceTypes("Credential", "@opencode/schema/credential", Credential),
   ...namespaceTypes("Event", "@opencode/schema/event", Event),
   ...namespaceTypes("EventLog", "@opencode/schema/event-log", EventLog),
