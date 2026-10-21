@@ -15,6 +15,18 @@ export type Info = {
 
 export const SESSION_TTL_SECONDS = 30 * 24 * 60 * 60
 
+// This token only authenticates the Raycast chat route, never the administrative API.
+export function raycastToken(password: string) {
+  return createHmac("sha256", password).update("opencode-raycast-chat-v1").digest("base64url")
+}
+
+export function authorizedRaycast(token: string, config: Info) {
+  if (!required(config) || Option.isNone(config.password)) return false
+  const expected = Buffer.from(raycastToken(config.password.value))
+  const actual = Buffer.from(token)
+  return actual.length === expected.length && timingSafeEqual(actual, expected)
+}
+
 export class Config extends Context.Service<Config, Info>()("@opencode/ServerAuthConfig") {
   static configLayer(input: Pick<Info, "password">) {
     return Layer.succeed(this, this.of({ ...input, username: "opencode" }))
