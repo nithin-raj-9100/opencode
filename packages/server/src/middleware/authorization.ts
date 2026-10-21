@@ -6,6 +6,7 @@ import { PTY_CONNECT_PATH, PTY_CONNECT_TICKET_QUERY } from "@opencode/protocol/g
 import { PERSISTENT_PTY_CONNECT_PATH } from "@opencode/protocol/groups/persistent-pty"
 import { MCP_CLIENT_PATH } from "@opencode/protocol/groups/mcp"
 import { PAIRING_CONNECT_PATH } from "@opencode/protocol/groups/server"
+import { RaycastChatPath } from "@opencode/protocol/groups/generate"
 import { Effect, Layer, Redacted } from "effect"
 import { Base64 } from "effect/encoding"
 import { HttpEffect, HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/http"
@@ -57,6 +58,10 @@ export function unauthorizedResponse(request: HttpServerRequest.HttpServerReques
 }
 
 export function authorizedRequest(request: HttpServerRequest.HttpServerRequest, config: ServerAuth.Info) {
+  if (request.method === "POST" && new URL(request.url, "http://localhost").pathname === RaycastChatPath) {
+    const bearer = /^Bearer\s+(.+)$/i.exec(request.headers.authorization ?? "")
+    if (bearer && ServerAuth.authorizedRaycast(bearer[1], config)) return Effect.succeed(true)
+  }
   return credentialFromRequest(request).pipe(
     Effect.map((credential) => ServerAuth.authorized(credential, config) || authorizedSessionCookie(request, config)),
   )
