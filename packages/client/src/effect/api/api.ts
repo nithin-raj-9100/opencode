@@ -42,6 +42,7 @@ import type { Worktree } from "@opencode/schema/worktree"
 import type { Vcs } from "@opencode/schema/vcs"
 import type { WebSearch } from "@opencode/schema/websearch"
 import type { Config } from "@opencode/schema/config"
+import type { ConfigModel } from "@opencode/schema/config/model"
 
 export type ServerInfoOutput = {
   readonly version: string
@@ -2485,9 +2486,7 @@ export type ConfigUpdateInput = {
   readonly shell?: string | null | undefined
   readonly permission_auto?:
     | {
-        readonly model?:
-          | { readonly providerID: string; readonly model: string; readonly variant?: string | undefined }
-          | undefined
+        readonly model?: ConfigModel.Selection | undefined
         readonly environment?: ReadonlyArray<string> | string | undefined
         readonly block?: ReadonlyArray<string> | undefined
         readonly soft_deny?: ReadonlyArray<string> | undefined
