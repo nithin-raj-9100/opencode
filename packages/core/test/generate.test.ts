@@ -104,7 +104,9 @@ const client = TestLLM.testLayer({ fallback: TestLLM.text("OK", "generate") })
 const resolver = ModelResolver.layer.pipe(Layer.provide(Layer.mergeAll(providers, models, integrations, npm, aisdk)))
 const it = testEffect(Generate.layer.pipe(Layer.provideMerge(Layer.mergeAll(resolver, client, tools))))
 const resolverIt = testEffect(resolver)
-const retryIt = testEffect(Generate.layer.pipe(Layer.provideMerge(Layer.merge(resolver, TestLLM.testLayer()))))
+const retryIt = testEffect(
+  Generate.layer.pipe(Layer.provideMerge(Layer.mergeAll(resolver, TestLLM.testLayer(), tools))),
+)
 
 it.effect("loads dynamic AI SDK models", () =>
   Effect.gen(function* () {
