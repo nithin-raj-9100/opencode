@@ -9,7 +9,7 @@ import { tmpdir } from "../../fixture/fixture"
 let sessionCounter = 0
 
 function pendingItem(sessionID: string, id: string, text: string) {
-  return { id, sessionID, timeCreated: 0, type: "user", delivery: "steer", payload: { text } }
+  return { id, sessionID, time: { created: 0 }, type: "user", delivery: "steer", payload: { text } }
 }
 
 async function withPendingSession(
@@ -23,7 +23,8 @@ async function withPendingSession(
   // A fresh session id per test: the draft stash is module state shared across tests.
   const sessionID = `ses_pending_recall_${sessionCounter++}`
   await using state = await tmpdir()
-  const setup = await createTestRenderer({ width: 100, height: 30, useThread: false, kittyKeyboard: true })
+  const setup = await createTestRenderer({ width: 100, height: 30, kittyKeyboard: true })
+  await setup.renderer.setupTerminal()
   setup.renderer.start()
   const ready = Promise.withResolvers<void>()
   const events = createEventStream()
