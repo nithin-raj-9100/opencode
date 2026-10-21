@@ -33,7 +33,37 @@ const textContract = {
   error: errors,
 }
 
+export const RaycastChatPath = "/api/raycast/v1/chat/completions"
+export const RaycastChatInput = Schema.Struct({
+  model: Schema.Literal("oc3-deepseek-v4.1-flash-max"),
+  messages: Schema.Array(
+    Schema.Struct({
+      role: Schema.Literals(["system", "developer", "user", "assistant"]),
+      content: Schema.Union([
+        Schema.String,
+        Schema.Array(Schema.Struct({ type: Schema.Literal("text"), text: Schema.String })),
+      ]),
+    }),
+  ).check(Schema.isMinLength(1)),
+  stream: Schema.optional(Schema.Boolean),
+  max_tokens: Schema.optional(Schema.Int.check(Schema.isGreaterThan(0), Schema.isLessThanOrEqualTo(384000))),
+  tools: Schema.optional(Schema.Array(Schema.Unknown).check(Schema.isMaxLength(0))),
+}).annotate({ identifier: "RaycastChatInput" })
+
 export const GenerateGroup = HttpApiGroup.make("server.generate")
+  .add(
+    HttpApiEndpoint.post("generate.raycast", RaycastChatPath, {
+      payload: RaycastChatInput,
+      success: Schema.Unknown,
+      error: [InvalidRequestError, ServiceUnavailableError, LocationNotFoundError],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "experimental.generate.raycast",
+        summary: "Stream Raycast text chats through OpenCode Go",
+        description: "OpenAI-compatible text chat for DeepSeek V4.1 Flash at maximum effort. No tools are executed.",
+      }),
+    ),
+  )
   .add(
     HttpApiEndpoint.post("generate.text", "/api/experimental/generate/text", textContract).annotateMerge(
       OpenApi.annotations({
