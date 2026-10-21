@@ -16,6 +16,7 @@ FORK_CONTEXT="$REPO_DIR/packages/cli/script/fork-context.md"
 OC3_MODEL="opencode-go/deepseek-v4.1-flash#max"
 MAX_FIX_ATTEMPTS=3
 CAFF_PID=""
+CONTEXT_SNAPSHOT=""
 
 FORCE=0
 if [ "${1:-}" = "--force" ]; then
@@ -79,6 +80,23 @@ auto['allow'] += ['Running bun run check at the repository root, bun run generat
 base['permission_auto']=auto
 json.dump(base,open('$AGENT_CONFIG','w'))
 "
+}
+
+# Rebase checks out earlier trees where this recently added file does not exist.
+# Keep the current instructions outside the worktree for the entire run.
+snapshot_fork_context() {
+  if [ ! -s "$FORK_CONTEXT" ]; then
+    echo "ERROR: required fork context is missing at $FORK_CONTEXT" >&2
+    return 1
+  fi
+  mkdir -p "$STATE_DIR"
+  CONTEXT_SNAPSHOT="$(mktemp "$STATE_DIR/fork-context.XXXXXX")" || return 1
+  if ! cp "$FORK_CONTEXT" "$CONTEXT_SNAPSHOT"; then
+    rm -f "$CONTEXT_SNAPSHOT"
+    CONTEXT_SNAPSHOT=""
+    return 1
+  fi
+  FORK_CONTEXT="$CONTEXT_SNAPSHOT"
 }
 
 fork_context() {
@@ -157,6 +175,9 @@ cleanup() {
     kill "$CAFF_PID" 2>/dev/null || true
   fi
   git -C "$REPO_DIR" rebase --abort >/dev/null 2>&1 || true
+  if [ -n "$CONTEXT_SNAPSHOT" ]; then
+    rm -f "$CONTEXT_SNAPSHOT"
+  fi
   rmdir "$LOCK_DIR" 2>/dev/null || true
 }
 trap cleanup EXIT INT TERM
@@ -199,6 +220,8 @@ purge_stale_build_cache
 
 echo "==> Generating one-shot oc3 config with pre-approved shell rules..."
 write_agent_config
+
+snapshot_fork_context || fail_run "Unable to preserve fork instructions before rebase."
 
 echo "==> Rebasing v2-dev onto upstream/$UPSTREAM_BRANCH..."
 if ! git -C "$REPO_DIR" rebase upstream/$UPSTREAM_BRANCH; then
