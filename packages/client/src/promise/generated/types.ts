@@ -774,6 +774,8 @@ export type PermissionSavedInfo = {
   time: { created: number; updated: number }
 }
 
+export type PermissionReview = { decision: PermissionReviewDecision; reason: string }
+
 export type Pty = {
   id: PtyID
   title: string
@@ -784,8 +786,6 @@ export type Pty = {
   pid: number
   exitCode?: number
 }
-
-export type PermissionReview = { decision: PermissionReviewDecision; reason: string }
 
 export type PersistentPtyInfo = {
   id: PtyID
@@ -4026,17 +4026,17 @@ export type SessionGoalSetInput = {
   readonly sessionID: { readonly sessionID: string }["sessionID"]
   readonly objective?: {
     readonly objective?: string
-    readonly status?: SessionGoalStatus
+    readonly status?: "active" | "paused" | "blocked" | "usage_limited" | "budget_limited" | "complete"
     readonly tokenBudget?: number | null
   }["objective"]
   readonly status?: {
     readonly objective?: string
-    readonly status?: SessionGoalStatus
+    readonly status?: "active" | "paused" | "blocked" | "usage_limited" | "budget_limited" | "complete"
     readonly tokenBudget?: number | null
   }["status"]
   readonly tokenBudget?: {
     readonly objective?: string
-    readonly status?: SessionGoalStatus
+    readonly status?: "active" | "paused" | "blocked" | "usage_limited" | "budget_limited" | "complete"
     readonly tokenBudget?: number | null
   }["tokenBudget"]
 }

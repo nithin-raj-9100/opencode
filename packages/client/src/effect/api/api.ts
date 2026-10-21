@@ -730,10 +730,7 @@ export type SessionLogOutput =
           readonly type: "session.goal.updated"
           readonly durable: { readonly aggregateID: string; readonly seq: Event.Seq; readonly version: Event.Version }
           readonly location?:
-            | {
-                readonly directory: AbsolutePath
-                readonly workspaceID?: Workspace.ID | undefined
-              }
+            | { readonly directory: AbsolutePath; readonly workspaceID?: Workspace.ID | undefined }
             | undefined
           readonly data: { readonly sessionID: Session.ID; readonly goal: SessionGoal.Info }
         }
@@ -744,10 +741,7 @@ export type SessionLogOutput =
           readonly type: "session.goal.cleared"
           readonly durable: { readonly aggregateID: string; readonly seq: Event.Seq; readonly version: Event.Version }
           readonly location?:
-            | {
-                readonly directory: AbsolutePath
-                readonly workspaceID?: Workspace.ID | undefined
-              }
+            | { readonly directory: AbsolutePath; readonly workspaceID?: Workspace.ID | undefined }
             | undefined
           readonly data: { readonly sessionID: Session.ID }
         }
@@ -2492,11 +2486,7 @@ export type ConfigUpdateInput = {
   readonly permission_auto?:
     | {
         readonly model?:
-          | {
-              readonly providerID: Provider.ID
-              readonly model: Model.ID
-              readonly variant?: Model.VariantID | undefined
-            }
+          | { readonly providerID: string; readonly model: string; readonly variant?: string | undefined }
           | undefined
         readonly environment?: ReadonlyArray<string> | string | undefined
         readonly block?: ReadonlyArray<string> | undefined
