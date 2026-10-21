@@ -56,3 +56,48 @@ test("one-shot repair config grants the actual check commands and preserves prov
     expect(JSON.parse(await readFile(base, "utf8")).permission_auto.allow).toEqual(["existing"])
   } finally { await rm(dir, { recursive: true, force: true }) }
 })
+
+test("fork instructions survive a rebase conflict before their introducing commit", async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), "oc3-rebase-context-"))
+  try {
+    const run = spawnSync("bash", ["-c", `
+set -euo pipefail
+source "$LAUNCHER"
+REPO_DIR="$FIXTURE/repo"
+STATE_DIR="$FIXTURE/state"
+mkdir -p "$REPO_DIR"
+cd "$REPO_DIR"
+git init -q -b base
+git config user.email fixture@example.invalid
+git config user.name Fixture
+printf 'base\\n' > conflict.txt
+git add conflict.txt
+git commit -qm base
+git checkout -qb fork
+printf 'fork\\n' > conflict.txt
+git commit -qam fork
+printf 'Preserve fixture fork features\\n' > context.md
+git add context.md
+git commit -qm instructions
+git checkout -q base
+printf 'upstream\\n' > conflict.txt
+git commit -qam upstream
+git checkout -q fork
+FORK_CONTEXT="$REPO_DIR/context.md"
+snapshot_fork_context
+if git rebase base > "$FIXTURE/rebase.log" 2>&1; then
+  exit 2
+fi
+test ! -e "$REPO_DIR/context.md"
+test -s "$FORK_CONTEXT"
+test "$(stat -f %Lp "$FORK_CONTEXT")" = 600
+fork_context
+git rebase --abort
+rm -f "$CONTEXT_SNAPSHOT"
+`], {
+      env: { ...process.env, LAUNCHER: Bun.fileURLToPath(source), FIXTURE: dir, GIT_CONFIG_NOSYSTEM: "1", GIT_CONFIG_GLOBAL: "/dev/null" }, encoding: "utf8",
+    })
+    expect(run.status).toBe(0)
+    expect(run.stdout).toContain("Preserve fixture fork features")
+  } finally { await rm(dir, { recursive: true, force: true }) }
+})
