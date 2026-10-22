@@ -240,6 +240,11 @@ TUI, or ACP.
   2026-10-21: upstream `dev` is 2.1.2; the old `v2` branch is 2.0.26 and last changed
   October 10. Our fork branch remains `v2-dev`; never confuse it with upstream's branch.
 - `OPENCODE_CHANNEL=latest` so the build shares `opencode.db` with the installed OpenCode 2.
+- The root `packageManager` field pins the Bun version, and `packages/script/src/index.ts`
+  refuses to build on an older Bun. Upstream raised it to `bun@1.4.4` in `37d973754b`; fix a
+  `This script requires bun@^X` failure with `bun upgrade` (the launcher resolves
+  `~/.bun/bin/bun`), not by relaxing the gate. An older Bun rewrites `bun.lock` during
+  `bun install`; restore it (`git checkout -- bun.lock`) and reinstall with the new Bun.
 - Repair agent: `opencode-go/deepseek-v4.1-flash#max` (OpenCode Go, maximum effort).
   Both conflict resolution and build/test repair use the same explicit model reference.
   Keep standalone repair execution so an incompatible or rebuilding daemon does not block repairs.
