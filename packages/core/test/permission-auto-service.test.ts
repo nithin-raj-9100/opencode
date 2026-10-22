@@ -19,6 +19,7 @@ import { AbsolutePath } from "@opencode/core/schema"
 import { Session } from "@opencode/core/session"
 import { SessionTable } from "@opencode/core/session/sql"
 import { SessionStore } from "@opencode/core/session/store"
+import { Agent } from "@opencode/schema/agent"
 import { Document, Info, type Entry } from "@opencode/schema/config"
 import { ConfigPermissionAuto } from "@opencode/schema/config/permission-auto"
 import { location } from "./fixture/location"
@@ -257,7 +258,7 @@ const child = (id: Session.ID, parent: Session.ID) =>
         directory: "/project",
         title: id,
         version: "test",
-        agent: "test",
+        agent: Agent.ID.make("test"),
         model: { id: "session-model", providerID: "session-provider" },
       })
       .onConflictDoNothing()
