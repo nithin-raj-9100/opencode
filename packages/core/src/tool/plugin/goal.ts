@@ -1,6 +1,6 @@
 export * as GoalTools from "./goal.js"
 
-import { ToolFailure } from "@opencode/ai"
+import { ToolFailure } from "@opencode/ai/effect"
 import type { Context } from "@opencode/plugin/effect/plugin"
 import { PositiveInt } from "@opencode/schema/schema"
 import { Effect, Schema } from "effect"
