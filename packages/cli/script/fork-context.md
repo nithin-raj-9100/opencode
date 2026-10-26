@@ -237,9 +237,13 @@ TUI, or ACP.
   and `packages/cli/script/fork-context.md`. The installed launcher is a copy at
   `~/.local/libexec/opencode3-sync-and-build.sh`; keep that installed copy synchronized when editing it.
 - Upstream active development moved to `dev` after the public V2 release. Verified on
-  2026-10-21: upstream `dev` is 2.1.2; the old `v2` branch is 2.0.26 and last changed
+  2026-10-27: upstream `dev` is 2.1.4; the old `v2` branch is 2.0.26 and last changed
   October 10. Our fork branch remains `v2-dev`; never confuse it with upstream's branch.
 - `OPENCODE_CHANNEL=latest` so the build shares `opencode.db` with the installed OpenCode 2.
+- Upstream now throws when a latest-channel build has no `OPENCODE_VERSION` (its release
+  workflow supplies one). Our unattended build never sets it, so
+  `packages/script/src/index.ts` falls back to the root `package.json` version instead of
+  failing. Keep that fallback; do not reintroduce the registry version fetch.
 - The root `packageManager` field pins the Bun version, and `packages/script/src/index.ts`
   refuses to build on an older Bun. Upstream raised it to `bun@1.4.4` in `37d973754b`; fix a
   `This script requires bun@^X` failure with `bun upgrade` (the launcher resolves
@@ -272,8 +276,10 @@ process or LaunchAgent. This is intentional: do not restore the old Python bridg
   complete histories remain separate and must never be mixed or cached by this adapter.
 - `packages/protocol/src/client.ts`: keep `generate.raycast` omitted from promise and Effect
   SDK adapters because it returns raw OpenAI JSON/SSE, not an ordinary typed SDK response.
-- `packages/client/script/build.ts`: retain the `ConfigModel` type references. Without them,
-  regenerated permission-config inputs lose model-ID brands and the pre-push typecheck fails.
+- `packages/client/script/generate.ts` (upstream renamed the old codegen `build.ts` to it;
+  `build.ts` now only bundles): retain the `ConfigModel` type references and the
+  `SessionGoal` type references. Without them, regenerated permission-config inputs lose
+  model-ID brands and goal clients lose their branded types, and the pre-push typecheck fails.
 - Tests (from `packages/server`):
   `bun test test/raycast-chat.test.ts test/auth.test.ts test/generate.test.ts`.
 - Native Raycast config is `~/.config/raycast/ai/providers.yaml`, currently pointing at
