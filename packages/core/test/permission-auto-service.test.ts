@@ -38,7 +38,11 @@ let handler: (input: Generate.TextInput) => Effect.Effect<string, Generate.Error
 
 const generateLayer = Layer.succeed(
   Generate.Service,
-  Generate.Service.of({ text: (input) => handler(input) }),
+  Generate.Service.of({
+    text: (input) => handler(input),
+    image: () => Effect.die("unused"),
+    decisions: () => Effect.die("unused"),
+  }),
 )
 
 const settingsDoc = (info: ConfigPermissionAuto.Info) =>
