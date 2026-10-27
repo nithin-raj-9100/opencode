@@ -487,7 +487,7 @@ describe("image and decision generation", () => {
     Layer.provide(Layer.mergeAll(mediaProviders, mediaModels, mediaIntegrations, npm, aisdk)),
   )
   const mediaIt = testEffect(
-    Generate.layer.pipe(Layer.provide(Layer.mergeAll(mediaResolver, client, mediaModels, executor))),
+    Generate.layer.pipe(Layer.provide(Layer.mergeAll(mediaResolver, client, mediaModels, executor, tools))),
   )
   const ref = (providerID: string, id: string, variant?: string) =>
     Ref.make({
