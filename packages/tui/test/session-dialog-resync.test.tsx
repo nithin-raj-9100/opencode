@@ -59,6 +59,9 @@ async function openDialogThenResync(target: string, dialog: string) {
       if (url.pathname === `/api/session/${session.id}`) return json({ data: session })
       if (url.pathname === `/api/session/${session.id}/inbox`) return json({ data: [] })
       if (url.pathname !== `/api/session/${session.id}/message`) return
+      // The prompt navigator indexes user prompts separately from transcript paging.
+      if (url.searchParams.get("type") === "user")
+        return json({ data: messages.filter((message) => message.type === "user"), cursor: {} })
       const start = Number(url.searchParams.get("cursor") ?? 0)
       const end = start + Number(url.searchParams.get("limit"))
       if (start === 0 && ++firstPages === 2) resync.resolve()
