@@ -40,7 +40,8 @@ import { SessionSchema } from "./schema.js"
 import { SessionSystemPrompt } from "./system-prompt.js"
 import { toLLMMessages } from "./runner/to-llm-message.js"
 import type { SessionMessage } from "./message.js"
-import { AUTO_PREAMBLE, PermissionAuto } from "../permission/auto.js"
+import { AUTO_PREAMBLE } from "../permission/auto.js"
+import { PermissionAutoState } from "../permission/state.js"
 
 const IMAGE_BYTES_TRIGGER = 25 * 1024 * 1024 // 25 MiB
 const IMAGE_BYTES_TARGET = 15 * 1024 * 1024 // 15 MiB
@@ -239,7 +240,7 @@ export const layer = Layer.effect(
   Effect.gen(function* () {
     const hooks = yield* PluginHooks.Service
     const transport = yield* SessionModelTransport.Service
-    const auto = yield* Effect.serviceOption(PermissionAuto.Service)
+    const auto = yield* Effect.serviceOption(PermissionAutoState.Service)
     const app = yield* App.Metadata
     const prepare = Effect.fn("SessionModelRequest.prepare")(function* <
       S extends SessionRequest & { tools?: Definitions },
@@ -280,8 +281,9 @@ export const layer = Layer.effect(
       // Match by identity first, then by key. Entries matching neither were invented by a
       // hook and are dropped. `t.name` stays the real name so execution can map renames back.
       const byName = new Map(tools.definitions.map((t) => [t.name, t]))
-      if (kind !== "title" && Option.isSome(auto)) {
-        const active = yield* auto.value.enabled(session.id).pipe(Effect.orElseSucceed(() => false))
+      const modelHooks = Option.isSome(auto) ? yield* auto.value.modelHooks() : undefined
+      if (kind !== "title" && modelHooks) {
+        const active = yield* modelHooks.enabled(session.id)
         if (active) shaped.system.push(SystemPart.make(AUTO_PREAMBLE))
       }
       const hooked = new Map(
@@ -410,7 +412,11 @@ export const layer = Layer.effect(
         executeTool: (call: Parameters<Prepared["executeTool"]>[0]) =>
           tools.execute({ ...call, definitions: hooked }).pipe(
             Effect.flatMap((result) =>
-              Option.isSome(auto) ? auto.value.inspect(session.id, call.call.name, result) : Effect.succeed(result),
+              Option.isSome(auto)
+                ? Effect.flatMap(auto.value.modelHooks(), (modelHooks) =>
+                    modelHooks ? modelHooks.inspect(session.id, call.call.name, result) : Effect.succeed(result),
+                  )
+                : Effect.succeed(result),
             ),
             Effect.catchCauseFilter(
               (cause) => {
@@ -444,5 +450,5 @@ export const layer = Layer.effect(
 export const node = makeLocationNode({
   service: Service,
   layer,
-  deps: [PluginHooks.node, SessionModelTransport.node, PermissionAuto.node, App.node],
+  deps: [PluginHooks.node, SessionModelTransport.node, PermissionAutoState.node, App.node],
 })

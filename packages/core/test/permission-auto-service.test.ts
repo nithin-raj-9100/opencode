@@ -111,6 +111,19 @@ const request = (id: string, overrides: Partial<Permission.Request> = {}): Permi
 })
 
 describe("PermissionAuto service", () => {
+  it.effect("binds the model-request hooks so every request carries the auto preamble", () =>
+    Effect.gen(function* () {
+      yield* setup
+      const state = yield* PermissionAutoState.Service
+      const auto = yield* PermissionAuto.Service
+      const hooks = yield* state.modelHooks()
+      expect(hooks).toBeDefined()
+      expect(yield* hooks!.enabled(SESSION)).toBe(false)
+      yield* auto.set(SESSION, true)
+      expect(yield* hooks!.enabled(SESSION)).toBe(true)
+    }),
+  )
+
   it.effect("resumes auto mode after a human approves a classifier ask", () =>
     Effect.gen(function* () {
       yield* setup
