@@ -3,6 +3,7 @@ export * as PermissionAutoState from "./state.js"
 import { Context, Effect, Layer } from "effect"
 import { makeLocationNode } from "@opencode/util/effect/app-node"
 import type { Permission } from "@opencode/schema/permission"
+import type { Tool } from "../tool.js"
 
 type SessionID = Permission.Request["sessionID"]
 
@@ -10,12 +11,25 @@ type Verdict = Permission.Review & { readonly feedback?: string; readonly uneval
 
 type Classifier = (request: Permission.Request) => Effect.Effect<Verdict>
 
+/**
+ * Model-request hooks bound by auto mode. SessionModelRequest cannot depend on the
+ * classifier node: that node reaches Generate and the provider stack, which would make
+ * every model request build the classifier graph. Auto mode registers itself here at
+ * startup instead, and requests read the hooks at call time.
+ */
+export type ModelHooks = {
+  readonly enabled: (sessionID: SessionID) => Effect.Effect<boolean>
+  readonly inspect: (sessionID: SessionID, tool: string, result: Tool.NormalizedResult) => Effect.Effect<Tool.NormalizedResult>
+}
+
 export interface Interface {
   readonly isActive: (sessionID: SessionID) => Effect.Effect<boolean>
   readonly activate: (sessionID: SessionID) => Effect.Effect<void>
   readonly deactivate: (sessionID: SessionID) => Effect.Effect<void>
   readonly bindClassifier: (classify: Classifier | undefined) => Effect.Effect<void>
   readonly bindDefaultGate: (gate: Effect.Effect<boolean> | undefined) => Effect.Effect<void>
+  readonly bindModelHooks: (hooks: ModelHooks | undefined) => Effect.Effect<void>
+  readonly modelHooks: () => Effect.Effect<ModelHooks | undefined>
   readonly classify: (request: Permission.Request) => Effect.Effect<Verdict | undefined>
 }
 
@@ -113,6 +127,7 @@ const layer = Layer.effect(
     const disabled = new Set<SessionID>()
     let classifier: Classifier | undefined
     let defaultGate: Effect.Effect<boolean> | undefined
+    let modelHooks: ModelHooks | undefined
     const isActive: Interface["isActive"] = (sessionID) =>
       Effect.suspend(() => {
         if (active.has(sessionID)) return Effect.succeed(true)
@@ -137,8 +152,21 @@ const layer = Layer.effect(
       Effect.sync(() => {
         classifier = classify
       })
+    const bindModelHooks: Interface["bindModelHooks"] = (hooks) =>
+      Effect.sync(() => {
+        modelHooks = hooks
+      })
     const classify: Interface["classify"] = (request) => (classifier ? classifier(request) : Effect.succeed(undefined))
-    return Service.of({ isActive, activate, deactivate, bindClassifier, bindDefaultGate, classify })
+    return Service.of({
+      isActive,
+      activate,
+      deactivate,
+      bindClassifier,
+      bindDefaultGate,
+      bindModelHooks,
+      modelHooks: () => Effect.sync(() => modelHooks),
+      classify,
+    })
   }),
 )
 

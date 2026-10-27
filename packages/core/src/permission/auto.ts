@@ -1065,6 +1065,11 @@ ${sample}`,
     yield* Effect.addFinalizer(() => autostate.bindClassifier(undefined))
     yield* autostate.bindDefaultGate(readSettings().pipe(Effect.map((settings) => settings.disableAutoMode !== true)))
     yield* Effect.addFinalizer(() => autostate.bindDefaultGate(undefined))
+    yield* autostate.bindModelHooks({
+      enabled: (sessionID) => enabled(sessionID).pipe(Effect.orElseSucceed(() => false)),
+      inspect: (sessionID, tool, result) => inspect(sessionID, tool, result),
+    })
+    yield* Effect.addFinalizer(() => autostate.bindModelHooks(undefined))
     return Service.of({ set, enabled, review, handback, inspect, denials, status, defaults, effective, critique })
   }),
 )
