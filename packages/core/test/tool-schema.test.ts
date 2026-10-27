@@ -60,10 +60,12 @@ test("empty Effect object schemas advertise type object", () => {
     properties: {},
     additionalProperties: false,
   })
+  // Effect encodes a nested empty struct as `{ not: { type: "null" } }`; only tool input
+  // schemas need the object projection because providers require callable parameters.
   expect(definition(tool).outputSchema).toEqual({
     type: "object",
     properties: {
-      meta: { type: "object", properties: {}, additionalProperties: false },
+      meta: { not: { type: "null" } },
     },
     required: ["meta"],
     additionalProperties: false,

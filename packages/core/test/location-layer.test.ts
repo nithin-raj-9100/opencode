@@ -546,7 +546,9 @@ describe("LocationServiceMap", () => {
           const builtIn = (name: string) => name !== "execute" && name !== "experimental_image_generate"
           const blockedTools = blockedState.tools.map((tool) => tool.name)
           expect(blockedTools.filter(builtIn).sort()).toEqual([
+            "create_goal",
             "edit",
+            "get_goal",
             "glob",
             "grep",
             "patch",
@@ -555,6 +557,7 @@ describe("LocationServiceMap", () => {
             "shell",
             "skill",
             "subagent",
+            "update_goal",
             "webfetch",
             "websearch",
             "write",
@@ -568,7 +571,9 @@ describe("LocationServiceMap", () => {
             blockedTools.includes("experimental_image_generate"),
           )
           expect(allowedTools.filter(builtIn).sort()).toEqual([
+            "create_goal",
             "edit",
+            "get_goal",
             "glob",
             "grep",
             "patch",
@@ -577,6 +582,7 @@ describe("LocationServiceMap", () => {
             "shell",
             "skill",
             "subagent",
+            "update_goal",
             "webfetch",
             "websearch",
             "write",
