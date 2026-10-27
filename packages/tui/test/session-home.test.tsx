@@ -70,6 +70,10 @@ test.each([
       const end = Number(url.searchParams.get("cursor") ?? messages.length)
       const limit = Number(url.searchParams.get("limit"))
       const start = Math.max(0, end - limit)
+      // The prompt navigator indexes user prompts with its own ordered read. It is not part of
+      // the transcript paging this test drives, so answer it and leave `pages` alone.
+      if (url.searchParams.get("type") === "user")
+        return json({ data: messages.slice(0, limit), cursor: {} })
       pages.push({ end, limit })
       if (end < messages.length) {
         request.signal.addEventListener("abort", () => aborted.resolve(), { once: true })
