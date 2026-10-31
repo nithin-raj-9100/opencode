@@ -12,6 +12,7 @@ test("prompt footer separates simultaneous subagent, shell, and usage status", a
   const dispatched: [string, string | undefined][] = []
   const [activeSubagent, setActiveSubagent] = createSignal(true)
   const context = {
+    client: { rpc: () => ({ get: () => Promise.resolve(null), events: { on: () => () => {} } }) },
     location: { directory: "/workspace" },
     theme: {
       text: {
@@ -30,7 +31,6 @@ test("prompt footer separates simultaneous subagent, shell, and usage status", a
         id === "session.child.first" ? ["ctrl+j"] : id === "command.palette.show" ? ["ctrl+p"] : [],
       dispatch: (id: string, input?: string) => dispatched.push([id, input]),
     },
-    client: { rpc: () => ({ get: () => Promise.resolve(null), events: { on: () => () => {} } }) },
     data: {
       on: () => () => {},
       session: {
@@ -94,6 +94,7 @@ test("prompt footer shows an active goal next to live status", async () => {
   const color = RGBA.fromInts(200, 200, 200)
   const subdued = RGBA.fromInts(100, 100, 100)
   const context = {
+    client: { rpc: () => ({ get: () => Promise.resolve(null), events: { on: () => () => {} } }) },
     location: { directory: "/workspace" },
     theme: {
       text: {
@@ -113,6 +114,7 @@ test("prompt footer shows an active goal next to live status", async () => {
       dispatch: () => undefined,
     },
     data: {
+      on: () => () => {},
       session: {
         family: () => ["session", "child"],
         status: (id: string) => (id === "child" ? "running" : "idle"),
@@ -154,6 +156,7 @@ test("prompt footer ticks pursuing goal elapsed time while the session is runnin
   const color = RGBA.fromInts(200, 200, 200)
   const subdued = RGBA.fromInts(100, 100, 100)
   const context = {
+    client: { rpc: () => ({ get: () => Promise.resolve(null), events: { on: () => () => {} } }) },
     location: { directory: "/workspace" },
     theme: {
       text: {
@@ -172,6 +175,7 @@ test("prompt footer ticks pursuing goal elapsed time while the session is runnin
       dispatch: () => undefined,
     },
     data: {
+      on: () => () => {},
       session: {
         family: () => ["session"],
         status: () => "running",
@@ -215,6 +219,7 @@ test("prompt footer ticks pursuing goal elapsed time while the session is runnin
 test("prompt footer can hide details", async () => {
   const color = RGBA.fromInts(200, 200, 200)
   const context = {
+    client: { rpc: () => ({ get: () => Promise.resolve(null), events: { on: () => () => {} } }) },
     location: { directory: "/workspace" },
     theme: {
       text: {
@@ -229,7 +234,6 @@ test("prompt footer can hide details", async () => {
         return []
       },
     },
-    client: { rpc: () => ({ get: () => Promise.resolve(null), events: { on: () => () => {} } }) },
     data: {
       on: () => () => {},
       session: {
@@ -329,6 +333,7 @@ test("prompt footer shows the session's goal without its objective and opens it 
         get: () => ({ id: "session", location: { directory: "/workspace" } }),
         cost: () => 0,
         message: { list: () => [] },
+        goal: { get: () => undefined },
       },
       shell: { list: () => [] },
       location: { model: { list: () => [] } },

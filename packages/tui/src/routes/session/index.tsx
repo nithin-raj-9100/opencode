@@ -31,14 +31,12 @@ import {
   TextAttributes,
   RGBA,
   MouseEvent,
-  type Renderable,
   type KeyEvent,
 } from "@opentui/core"
 import { Prompt, type PromptRef } from "../../component/prompt"
 import {
   mediaHashFromUri,
   type PromptAttachment,
-  isSessionNotFoundError,
   type SessionMessageInfo,
   type SessionMessageAssistant,
   type SessionMessageAssistantReasoning,
@@ -93,7 +91,6 @@ import type { ProjectedPrompt } from "../../prompt/codec"
 import { useEvent } from "../../context/event"
 import { emptyPrompt } from "../../prompt/history"
 import { projectedPromptInput } from "../../prompt/codec"
-import { appendPrompt } from "../../prompt/history"
 import type { PromptInfo } from "../../prompt/history"
 import { deduplicateVisibleImages } from "../../prompt/attachment"
 import { useEpilogue } from "../../context/epilogue"
