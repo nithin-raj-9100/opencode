@@ -164,6 +164,8 @@ const appBindingCommands = [
   "variant.list",
   "provider.connect",
   "opencode.settings",
+  "permission.mode",
+  "permission.cycle",
   "opencode.status",
   "opencode.update",
   "server.pair",
