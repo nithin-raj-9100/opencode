@@ -12,7 +12,6 @@ import { SessionSchema } from "./session/schema.js"
 import { SessionStore } from "./session/store.js"
 import { Wildcard } from "./util/wildcard.js"
 import { PermissionSaved } from "./permission/saved.js"
-import { PermissionAuto } from "./permission/auto.js"
 import { PermissionAutoState } from "./permission/state.js"
 import { PluginHooks } from "./plugin/hooks.js"
 
@@ -199,11 +198,13 @@ const layer = Layer.effect(
     }
 
     const autoClassifyAll = Effect.fnUntraced(function* () {
+      const { PermissionAuto } = yield* Effect.promise(() => import("./permission/auto.js"))
       const roots = [location.directory, location.project.directory]
       return PermissionAuto.settingsFrom(yield* config.entries(), roots).classifyAllShell === true
     })
 
     const evaluateInput = Effect.fnUntraced(function* (input: AssertInput) {
+      const { PermissionAuto } = yield* Effect.promise(() => import("./permission/auto.js"))
       const rules = yield* configured(input.sessionID, input.agent)
       const root = yield* rootID(input.sessionID)
       const autoActive = yield* autostate.isActive(root)
@@ -250,7 +251,12 @@ const layer = Layer.effect(
       })
       const unattended = yield* Unattended
       if (event.effect !== "ask" || unattended === undefined || gated.classify)
-        return { effect: event.effect, message: event.message ?? ("message" in gated ? gated.message : undefined), rules: all, classify: gated.classify && event.effect === "ask" }
+        return {
+          effect: event.effect,
+          message: event.message,
+          rules: all,
+          classify: gated.classify && event.effect === "ask",
+        }
       const settled = [...all, ...unattended]
       const allowed = input.resources.every((resource) => evaluate(input.action, resource, settled).effect === "allow")
       if (allowed) return { effect: "allow" as const, rules: all, classify: false }
@@ -330,6 +336,7 @@ const layer = Layer.effect(
               if (reviewed) {
                 if (reviewed.decision === "allow") return
                 if (reviewed.decision === "deny") {
+                  const { PermissionAuto } = yield* Effect.promise(() => import("./permission/auto.js"))
                   if (PermissionAuto.isUnevaluated(reviewed)) {
                     return yield* new CorrectedError({ feedback: reviewed.feedback ?? reviewed.reason })
                   }

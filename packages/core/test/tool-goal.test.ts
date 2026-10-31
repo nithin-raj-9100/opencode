@@ -4,6 +4,10 @@ import { AppNodeBuilder } from "@opencode/core/effect/app-node-builder"
 import { LayerNode } from "@opencode/util/effect/layer-node"
 import { Session } from "@opencode/core/session"
 import { SessionGoal } from "@opencode/core/session/goal"
+import { Image } from "@opencode/core/image"
+import { Permission } from "@opencode/core/permission"
+import { imagePassthrough } from "./lib/image"
+import { permissionLayer } from "./lib/permission"
 import { Tool } from "@opencode/core/tool"
 import { GoalTools } from "@opencode/core/tool/plugin/goal"
 import { testEffect } from "./lib/effect"
@@ -67,7 +71,7 @@ const goals = SessionGoal.Service.of({
   account: () => Effect.succeed(current),
 })
 
-const it = testEffect(AppNodeBuilder.build(LayerNode.group([Tool.node])))
+const it = testEffect(AppNodeBuilder.build(LayerNode.group([Tool.node]), [Image.node.replace(imagePassthrough), Permission.node.replace(permissionLayer())]))
 
 describe("GoalTools", () => {
   it.effect("creates, reads, and completes a session goal", () =>
