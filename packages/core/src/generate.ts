@@ -137,21 +137,19 @@ export const layer = Layer.effect(
             ...(tools.length > 0 ? { tools } : {}),
             ...(input.session
               ? {
-                  http: {
-                    headers: {
-                      "x-session-affinity": input.session.id,
-                      "X-Session-Id": input.session.id,
-                      ...(input.session.parentID ? { "x-parent-session-id": input.session.parentID } : {}),
-                      "User-Agent": App.useragent(app),
-                      "x-opencode-project": input.session.projectID,
-                      "x-opencode-session": input.session.id,
-                      "x-opencode-client": app.name,
-                    },
+                  headers: {
+                    "x-session-affinity": input.session.id,
+                    "X-Session-Id": input.session.id,
+                    ...(input.session.parentID ? { "x-parent-session-id": input.session.parentID } : {}),
+                    "User-Agent": App.useragent(app),
+                    "x-opencode-project": input.session.projectID,
+                    "x-opencode-session": input.session.id,
+                    "x-opencode-client": app.name,
                   },
                 }
               : {
                   // Gateways require session attribution even for a stateless call; no Session is stored.
-                  http: { headers: { "x-opencode-session": SessionID.create() } },
+                  headers: { "x-opencode-session": SessionID.create() },
                 }),
           }),
         )

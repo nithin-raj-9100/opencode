@@ -243,7 +243,7 @@ sessionIt.effect("sends session routing headers when a session is given", () =>
       session: { id: "ses_child", projectID: "prj_test", parentID: "ses_parent" },
     })
 
-    expect((yield* llm.requests()).at(-1)?.http?.headers).toEqual({
+    expect((yield* llm.requests()).at(-1)?.headers).toEqual({
       "x-session-affinity": "ses_child",
       "X-Session-Id": "ses_child",
       "x-parent-session-id": "ses_parent",
