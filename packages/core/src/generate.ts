@@ -310,5 +310,5 @@ function failureReason(tag: AIError["reason"]["_tag"], status: number | undefine
 export const node = makeLocationNode({
   service: Service,
   layer,
-  deps: [App.node, ModelResolver.node, Model.node, Tool.node, llmClient, requestExecutor],
+  deps: [ModelResolver.node, Model.node, Tool.node, App.node, llmClient, requestExecutor],
 })
