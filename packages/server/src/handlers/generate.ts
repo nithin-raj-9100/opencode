@@ -18,7 +18,7 @@ import { Effect, Schema } from "effect"
 import { HttpServerResponse } from "effect/http"
 import { HttpApiBuilder } from "effect/http-api"
 import { Api } from "../api"
-import { awaitPlugins, locationErrors } from "../location"
+import { locationErrors } from "../location"
 import { forward } from "../raycast-chat"
 
 export const GenerateHandler = HttpApiBuilder.group(Api, "server.generate", (handlers) =>
@@ -68,7 +68,6 @@ export const GenerateHandler = HttpApiBuilder.group(Api, "server.generate", (han
               Effect.flatMap(Schema.decodeUnknownEffect(RaycastChatInput)),
               Effect.mapError(() => new InvalidRequestError({ message: "Invalid Raycast text chat request" })),
             )
-            yield* awaitPlugins
             const integrations = yield* Integration.Service
             const connection = yield* integrations.connection.active(Integration.ID.make("opencode-go"))
             const credential = connection
