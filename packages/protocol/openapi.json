@@ -3726,8 +3726,7 @@
             "name": "sessionID",
             "in": "path",
             "schema": {
-              "type": "string",
-              "pattern": "^ses"
+              "$ref": "#/components/schemas/Session.ID"
             },
             "required": true
           }
@@ -3779,7 +3778,7 @@
             }
           },
           "404": {
-            "description": "SessionNotFoundError",
+            "description": "SessionNotFoundError | LocationNotFoundError",
             "content": {
               "application/json": {
                 "schema": {
@@ -3788,7 +3787,7 @@
                       "$ref": "#/components/schemas/SessionNotFoundErrorEncoded"
                     },
                     {
-                      "$ref": "#/components/schemas/SessionNotFoundErrorEncoded"
+                      "$ref": "#/components/schemas/LocationNotFoundErrorEncoded"
                     }
                   ]
                 }
@@ -3807,8 +3806,7 @@
             "name": "sessionID",
             "in": "path",
             "schema": {
-              "type": "string",
-              "pattern": "^ses"
+              "$ref": "#/components/schemas/Session.ID"
             },
             "required": true
           }
@@ -3837,14 +3835,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/InvalidRequestErrorEncoded"
-                    },
-                    {
-                      "$ref": "#/components/schemas/InvalidRequestErrorEncoded"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/InvalidRequestErrorEncoded"
                 }
               }
             }
@@ -3860,7 +3851,7 @@
             }
           },
           "404": {
-            "description": "SessionNotFoundError",
+            "description": "SessionNotFoundError | LocationNotFoundError",
             "content": {
               "application/json": {
                 "schema": {
@@ -3869,7 +3860,7 @@
                       "$ref": "#/components/schemas/SessionNotFoundErrorEncoded"
                     },
                     {
-                      "$ref": "#/components/schemas/SessionNotFoundErrorEncoded"
+                      "$ref": "#/components/schemas/LocationNotFoundErrorEncoded"
                     }
                   ]
                 }
@@ -3908,8 +3899,7 @@
             "name": "sessionID",
             "in": "path",
             "schema": {
-              "type": "string",
-              "pattern": "^ses"
+              "$ref": "#/components/schemas/Session.ID"
             },
             "required": true
           }
@@ -3961,7 +3951,7 @@
             }
           },
           "404": {
-            "description": "SessionNotFoundError",
+            "description": "SessionNotFoundError | LocationNotFoundError",
             "content": {
               "application/json": {
                 "schema": {
@@ -3970,7 +3960,7 @@
                       "$ref": "#/components/schemas/SessionNotFoundErrorEncoded"
                     },
                     {
-                      "$ref": "#/components/schemas/SessionNotFoundErrorEncoded"
+                      "$ref": "#/components/schemas/LocationNotFoundErrorEncoded"
                     }
                   ]
                 }
@@ -5391,6 +5381,76 @@
         },
         "description": "Retrieve the model used when a session has no explicit model selection.",
         "summary": "Get default model"
+      }
+    },
+    "/api/raycast/v1/chat/completions": {
+      "post": {
+        "tags": ["generate"],
+        "operationId": "experimental.generate.raycast",
+        "parameters": [],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestErrorEncoded"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedErrorEncoded"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "LocationNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LocationNotFoundErrorEncoded"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "ServiceUnavailableError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceUnavailableErrorEncoded"
+                }
+              }
+            }
+          }
+        },
+        "description": "OpenAI-compatible text chat for DeepSeek V4.1 Flash at maximum effort. No tools are executed.",
+        "summary": "Stream Raycast text chats through OpenCode Go",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RaycastChatInput"
+              }
+            }
+          },
+          "required": true
+        }
       }
     },
     "/api/experimental/generate/text": {
@@ -9045,27 +9105,20 @@
             "name": "location",
             "in": "query",
             "schema": {
-              "anyOf": [
-                {
-                  "type": "object",
-                  "properties": {
-                    "directory": {
-                      "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ]
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
                     }
-                  },
-                  "additionalProperties": false
-                },
-                {
-                  "type": "null"
+                  ]
                 }
-              ]
+              },
+              "additionalProperties": false
             },
             "required": false,
             "style": "deepObject",
@@ -9110,6 +9163,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/UnauthorizedErrorEncoded"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "LocationNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LocationNotFoundErrorEncoded"
                 }
               }
             }
@@ -9128,27 +9191,20 @@
             "name": "location",
             "in": "query",
             "schema": {
-              "anyOf": [
-                {
-                  "type": "object",
-                  "properties": {
-                    "directory": {
-                      "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ]
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
                     }
-                  },
-                  "additionalProperties": false
-                },
-                {
-                  "type": "null"
+                  ]
                 }
-              ]
+              },
+              "additionalProperties": false
             },
             "required": false,
             "style": "deepObject",
@@ -9196,6 +9252,16 @@
                 }
               }
             }
+          },
+          "404": {
+            "description": "LocationNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LocationNotFoundErrorEncoded"
+                }
+              }
+            }
           }
         },
         "description": "Return the effective auto mode classifier rules with user settings applied.",
@@ -9211,27 +9277,20 @@
             "name": "location",
             "in": "query",
             "schema": {
-              "anyOf": [
-                {
-                  "type": "object",
-                  "properties": {
-                    "directory": {
-                      "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ]
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
                     }
-                  },
-                  "additionalProperties": false
-                },
-                {
-                  "type": "null"
+                  ]
                 }
-              ]
+              },
+              "additionalProperties": false
             },
             "required": false,
             "style": "deepObject",
@@ -9286,6 +9345,16 @@
                 }
               }
             }
+          },
+          "404": {
+            "description": "LocationNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LocationNotFoundErrorEncoded"
+                }
+              }
+            }
           }
         },
         "description": "Review the custom auto mode classifier rules for clarity, conflicts, and false positives.",
@@ -9301,8 +9370,7 @@
             "name": "sessionID",
             "in": "path",
             "schema": {
-              "type": "string",
-              "pattern": "^ses"
+              "$ref": "#/components/schemas/Session.ID"
             },
             "required": true
           },
@@ -9310,27 +9378,20 @@
             "name": "location",
             "in": "query",
             "schema": {
-              "anyOf": [
-                {
-                  "type": "object",
-                  "properties": {
-                    "directory": {
-                      "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ]
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
                     }
-                  },
-                  "additionalProperties": false
-                },
-                {
-                  "type": "null"
+                  ]
                 }
-              ]
+              },
+              "additionalProperties": false
             },
             "required": false,
             "style": "deepObject",
@@ -9358,6 +9419,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/UnauthorizedErrorEncoded"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "LocationNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LocationNotFoundErrorEncoded"
                 }
               }
             }
@@ -9706,8 +9777,7 @@
             "name": "sessionID",
             "in": "path",
             "schema": {
-              "type": "string",
-              "pattern": "^ses"
+              "$ref": "#/components/schemas/Session.ID"
             },
             "required": true
           },
@@ -9715,8 +9785,7 @@
             "name": "requestID",
             "in": "path",
             "schema": {
-              "type": "string",
-              "pattern": "^per"
+              "$ref": "#/components/schemas/Permission.ID"
             },
             "required": true
           }
@@ -9761,19 +9830,19 @@
             }
           },
           "404": {
-            "description": "SessionNotFoundError | PermissionNotFoundError",
+            "description": "SessionNotFoundError | PermissionNotFoundError | LocationNotFoundError",
             "content": {
               "application/json": {
                 "schema": {
                   "anyOf": [
                     {
+                      "$ref": "#/components/schemas/SessionNotFoundErrorEncoded"
+                    },
+                    {
                       "$ref": "#/components/schemas/PermissionNotFoundErrorEncoded"
                     },
                     {
-                      "$ref": "#/components/schemas/SessionNotFoundErrorEncoded"
-                    },
-                    {
-                      "$ref": "#/components/schemas/SessionNotFoundErrorEncoded"
+                      "$ref": "#/components/schemas/LocationNotFoundErrorEncoded"
                     }
                   ]
                 }
@@ -9794,8 +9863,7 @@
             "name": "sessionID",
             "in": "path",
             "schema": {
-              "type": "string",
-              "pattern": "^ses"
+              "$ref": "#/components/schemas/Session.ID"
             },
             "required": true
           }
@@ -9864,11 +9932,18 @@
             }
           },
           "404": {
-            "description": "SessionNotFoundError",
+            "description": "SessionNotFoundError | LocationNotFoundError",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SessionNotFoundErrorEncoded"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/SessionNotFoundErrorEncoded"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LocationNotFoundErrorEncoded"
+                    }
+                  ]
                 }
               }
             }
@@ -9887,8 +9962,7 @@
             "name": "sessionID",
             "in": "path",
             "schema": {
-              "type": "string",
-              "pattern": "^ses"
+              "$ref": "#/components/schemas/Session.ID"
             },
             "required": true
           }
@@ -9968,11 +10042,18 @@
             }
           },
           "404": {
-            "description": "SessionNotFoundError",
+            "description": "SessionNotFoundError | LocationNotFoundError",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SessionNotFoundErrorEncoded"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/SessionNotFoundErrorEncoded"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LocationNotFoundErrorEncoded"
+                    }
+                  ]
                 }
               }
             }
@@ -11022,6 +11103,8 @@
                     "session.execution.succeeded",
                     "session.execution.failed",
                     "session.execution.interrupted",
+                    "session.goal.updated",
+                    "session.goal.cleared",
                     "session.instructions.updated",
                     "session.synthetic",
                     "session.skill.activated",
@@ -11057,6 +11140,7 @@
                     "reference.updated",
                     "permission.asked",
                     "permission.replied",
+                    "permission.auto_denied",
                     "plugin.updated",
                     "project.updated",
                     "worktree.updated",
@@ -11133,6 +11217,8 @@
                           "session.execution.succeeded",
                           "session.execution.failed",
                           "session.execution.interrupted",
+                          "session.goal.updated",
+                          "session.goal.cleared",
                           "session.instructions.updated",
                           "session.synthetic",
                           "session.skill.activated",
@@ -11168,6 +11254,7 @@
                           "reference.updated",
                           "permission.asked",
                           "permission.replied",
+                          "permission.auto_denied",
                           "plugin.updated",
                           "project.updated",
                           "worktree.updated",
@@ -23385,6 +23472,89 @@
         "required": ["ticket", "expires_in"],
         "additionalProperties": false
       },
+      "RaycastChatInput": {
+        "type": "object",
+        "properties": {
+          "model": {
+            "type": "string",
+            "enum": ["oc3-deepseek-v4.1-flash-max"]
+          },
+          "messages": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "role": {
+                  "type": "string",
+                  "enum": ["system", "developer", "user", "assistant"]
+                },
+                "content": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "enum": ["text"]
+                          },
+                          "text": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["type", "text"],
+                        "additionalProperties": false
+                      }
+                    }
+                  ]
+                }
+              },
+              "required": ["role", "content"],
+              "additionalProperties": false
+            },
+            "minItems": 1
+          },
+          "stream": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "max_tokens": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 384000,
+                "exclusiveMinimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tools": {
+            "anyOf": [
+              {
+                "type": "array",
+                "maxItems": 0
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": ["model", "messages"],
+        "additionalProperties": false
+      },
       "Reference.GitSource": {
         "type": "object",
         "properties": {
@@ -24115,6 +24285,12 @@
             "$ref": "#/components/schemas/session.execution.interrupted"
           },
           {
+            "$ref": "#/components/schemas/session.goal.updated"
+          },
+          {
+            "$ref": "#/components/schemas/session.goal.cleared"
+          },
+          {
             "$ref": "#/components/schemas/session.instructions.updated"
           },
           {
@@ -24232,16 +24408,11 @@
           }
         ]
       },
-      "Session.ID": {
-        "type": "string",
-        "pattern": "^ses"
-      },
       "Session.Goal.Info": {
         "type": "object",
         "properties": {
           "sessionID": {
-            "type": "string",
-            "pattern": "^ses"
+            "$ref": "#/components/schemas/Session.ID"
           },
           "goalID": {
             "type": "string",
@@ -24255,15 +24426,18 @@
           },
           "tokenBudget": {
             "type": "integer",
+            "maximum": 9007199254740991,
             "exclusiveMinimum": 0
           },
           "tokensUsed": {
             "type": "integer",
-            "minimum": 0
+            "minimum": 0,
+            "maximum": 9007199254740991
           },
           "timeUsedSeconds": {
             "type": "integer",
-            "minimum": 0
+            "minimum": 0,
+            "maximum": 9007199254740991
           },
           "time": {
             "type": "object",
@@ -24295,6 +24469,7 @@
             "anyOf": [
               {
                 "type": "integer",
+                "maximum": 9007199254740991,
                 "exclusiveMinimum": 0
               },
               {
@@ -24308,6 +24483,10 @@
       "Session.Goal.Status": {
         "type": "string",
         "enum": ["active", "paused", "blocked", "usage_limited", "budget_limited", "complete"]
+      },
+      "Session.ID": {
+        "type": "string",
+        "pattern": "^ses"
       },
       "Session.Inbox.Compaction": {
         "type": "object",
@@ -26704,6 +26883,12 @@
             "$ref": "#/components/schemas/session.execution.interrupted"
           },
           {
+            "$ref": "#/components/schemas/session.goal.updated"
+          },
+          {
+            "$ref": "#/components/schemas/session.goal.cleared"
+          },
+          {
             "$ref": "#/components/schemas/session.instructions.updated"
           },
           {
@@ -26807,6 +26992,9 @@
           },
           {
             "$ref": "#/components/schemas/permission.replied"
+          },
+          {
+            "$ref": "#/components/schemas/permission.auto_denied"
           },
           {
             "$ref": "#/components/schemas/plugin.updated"
@@ -28137,6 +28325,54 @@
         "required": ["id", "created", "type", "data"],
         "additionalProperties": false
       },
+      "permission.auto_denied": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Event.ID"
+          },
+          "created": {
+            "type": "number"
+          },
+          "metadata": {
+            "type": "object"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["permission.auto_denied"]
+          },
+          "location": {
+            "$ref": "#/components/schemas/Location.Ref"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "sessionID": {
+                "$ref": "#/components/schemas/Session.ID"
+              },
+              "requestID": {
+                "$ref": "#/components/schemas/Permission.ID"
+              },
+              "action": {
+                "type": "string"
+              },
+              "resources": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "reason": {
+                "type": "string"
+              }
+            },
+            "required": ["sessionID", "requestID", "action", "resources", "reason"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["id", "created", "type", "data"],
+        "additionalProperties": false
+      },
       "permission.replied": {
         "type": "object",
         "properties": {
@@ -29286,6 +29522,107 @@
               }
             },
             "required": ["sessionID", "parentID", "boundary"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["id", "created", "type", "durable", "data"],
+        "additionalProperties": false
+      },
+      "session.goal.cleared": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Event.ID"
+          },
+          "created": {
+            "type": "number"
+          },
+          "metadata": {
+            "type": "object"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["session.goal.cleared"]
+          },
+          "durable": {
+            "type": "object",
+            "properties": {
+              "aggregateID": {
+                "type": "string"
+              },
+              "seq": {
+                "$ref": "#/components/schemas/Event.Seq"
+              },
+              "version": {
+                "$ref": "#/components/schemas/Event.VersionEncoded_c77c5abcb68d"
+              }
+            },
+            "required": ["aggregateID", "seq", "version"],
+            "additionalProperties": false
+          },
+          "location": {
+            "$ref": "#/components/schemas/Location.Ref"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "sessionID": {
+                "$ref": "#/components/schemas/Session.ID"
+              }
+            },
+            "required": ["sessionID"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["id", "created", "type", "durable", "data"],
+        "additionalProperties": false
+      },
+      "session.goal.updated": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Event.ID"
+          },
+          "created": {
+            "type": "number"
+          },
+          "metadata": {
+            "type": "object"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["session.goal.updated"]
+          },
+          "durable": {
+            "type": "object",
+            "properties": {
+              "aggregateID": {
+                "type": "string"
+              },
+              "seq": {
+                "$ref": "#/components/schemas/Event.Seq"
+              },
+              "version": {
+                "$ref": "#/components/schemas/Event.VersionEncoded_c77c5abcb68d"
+              }
+            },
+            "required": ["aggregateID", "seq", "version"],
+            "additionalProperties": false
+          },
+          "location": {
+            "$ref": "#/components/schemas/Location.Ref"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "sessionID": {
+                "$ref": "#/components/schemas/Session.ID"
+              },
+              "goal": {
+                "$ref": "#/components/schemas/Session.Goal.Info"
+              }
+            },
+            "required": ["sessionID", "goal"],
             "additionalProperties": false
           }
         },
