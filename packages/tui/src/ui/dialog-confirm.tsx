@@ -49,14 +49,19 @@ export function DialogConfirm(props: DialogConfirmProps) {
 
   Keymap.createLayer(() => ({
     mode: "modal",
-    commands: [
-      { bind: "return", title: "Confirm dialog selection", group: "Dialog", run: () => choose(store.active) },
-      { bind: "left", title: "Previous dialog option", group: "Dialog", run: toggle },
-      { bind: "right", title: "Next dialog option", group: "Dialog", run: toggle },
-      { bind: "tab", title: "Next dialog option", group: "Dialog", run: toggle },
-      { bind: "shift+tab", title: "Previous dialog option", group: "Dialog", run: toggle },
-      ...(newDesigns() ? [{ bind: "escape", title: "Cancel dialog", group: "Dialog", run: dismiss }] : []),
-    ],
+    commands: newDesigns()
+      ? [
+          { bind: "return", title: "Confirm", group: "Dialog", run: () => choose("confirm") },
+          { bind: "escape", title: "Cancel dialog", group: "Dialog", run: dismiss },
+        ]
+      : [
+          { bind: "return", title: "Confirm dialog selection", group: "Dialog", run: () => choose(store.active) },
+          { bind: "left", title: "Previous dialog option", group: "Dialog", run: toggle },
+          { bind: "right", title: "Next dialog option", group: "Dialog", run: toggle },
+          { bind: "tab", title: "Next dialog option", group: "Dialog", run: toggle },
+          { bind: "shift+tab", title: "Previous dialog option", group: "Dialog", run: toggle },
+          { bind: "escape", title: "Cancel dialog", group: "Dialog", run: dismiss },
+        ],
   }))
   return (
     <DialogLayout
