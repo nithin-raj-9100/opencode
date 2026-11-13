@@ -170,11 +170,11 @@ export { PromptHistoryProvider }
 
 export function usePromptHistory(currentDraft = emptyPrompt) {
   const history = useHistoryEntries()
-  let index = 0
-  let draft: PromptInfo | undefined
-  function reset() {
-    index = 0
-    draft = undefined
+  // Recall keeps one cursor and one pre-browse draft per directory scope.
+  const cursors = new Map<string, { index: number; draft?: PromptInfo }>()
+  function reset(scope?: string) {
+    if (scope === undefined) cursors.clear()
+    else cursors.delete(scope)
   }
   return {
     ensure(scope: string) {
@@ -183,22 +183,24 @@ export function usePromptHistory(currentDraft = emptyPrompt) {
     move(scope: string, direction: 1 | -1, input: string) {
       void history.ensure(scope)
       const entries = history.entries(scope)
-      const next = index + direction
+      const cursor = cursors.get(scope) ?? { index: 0 }
+      const next = cursor.index + direction
       if (next < -entries.length || next > 0) return
-      if (index < 0 && input && entries.at(index)?.text !== input) return
-      if (index === 0) draft = structuredClone({ ...currentDraft(), text: input })
-      index = next
+      if (cursor.index < 0 && input && entries.at(cursor.index)?.text !== input) return
+      if (cursor.index === 0) cursor.draft = structuredClone({ ...currentDraft(), text: input })
+      cursor.index = next
+      cursors.set(scope, cursor)
       if (next !== 0) {
         const entry = entries.at(next)
         return entry ? { ...emptyPrompt(), ...structuredClone(unwrap(entry)) } : undefined
       }
-      const restored = draft
-      draft = undefined
+      const restored = cursor.draft
+      cursor.draft = undefined
       return restored
     },
     reset,
     append(scope: string, item: PromptInfo) {
-      reset()
+      reset(scope)
       history.append(scope, item)
     },
   }
