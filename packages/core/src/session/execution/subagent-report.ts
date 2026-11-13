@@ -91,7 +91,8 @@ export const make = (deps: Deps) => {
           .handback({ sessionID: report.recovery.childSessionID, agent: report.recovery.agent, output })
           .pipe(Effect.orElseSucceed(() => output))
       }),
-    )
+      // A Location that cannot be rebuilt must not swallow the report; deliver it unreviewed.
+    ).pipe(Effect.orElseSucceed(() => output))
     return { ...report, output: reviewed }
   })
 
