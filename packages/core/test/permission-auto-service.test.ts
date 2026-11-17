@@ -42,6 +42,11 @@ const generateLayer = Layer.succeed(
     text: (input) => handler(input),
     image: () => Effect.die(new Error("unused")),
     decisions: () => Effect.die(new Error("unused")),
+    video: {
+      start: () => Effect.die(new Error("unused")),
+      status: () => Effect.die(new Error("unused")),
+      result: () => Effect.die(new Error("unused")),
+    },
   }),
 )
 
