@@ -43,7 +43,7 @@ const response = (goal: SessionGoal.Info | undefined, complete: boolean) => {
 }
 
 export const Plugin = {
-  id: "opencode.goal",
+  id: "opencode.goal.tools",
   effect: Effect.fn("GoalTools.Plugin")(function* (ctx: Context) {
     const goals = yield* SessionGoal.Service
     yield* ctx.tool
