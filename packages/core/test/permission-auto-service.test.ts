@@ -46,6 +46,7 @@ const generateLayer = Layer.succeed(
       start: () => Effect.die(new Error("unused")),
       status: () => Effect.die(new Error("unused")),
       result: () => Effect.die(new Error("unused")),
+      cancel: () => Effect.die(new Error("unused")),
     },
   }),
 )

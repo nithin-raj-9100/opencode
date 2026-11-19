@@ -22,7 +22,7 @@ import { Effect, Schema } from "effect"
 import { HttpServerResponse } from "effect/http"
 import { HttpApiBuilder } from "effect/http-api"
 import { Api } from "../api"
-import { awaitPlugins, locationErrors } from "../location"
+import { locationErrors } from "../location"
 import { forward } from "../raycast-chat"
 
 export const GenerateHandler = HttpApiBuilder.group(Api, "server.generate", (handlers) =>
