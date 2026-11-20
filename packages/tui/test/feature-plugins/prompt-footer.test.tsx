@@ -131,6 +131,7 @@ test("prompt footer shows an active goal next to live status", async () => {
           }),
         },
       },
+      job: { list: () => [] },
       shell: { list: () => [] },
       location: {
         model: { list: () => [] },
@@ -192,6 +193,7 @@ test("prompt footer ticks pursuing goal elapsed time while the session is runnin
           }),
         },
       },
+      job: { list: () => [] },
       shell: { list: () => [] },
       location: {
         model: { list: () => [] },
@@ -411,6 +413,7 @@ test("prompt footer counts scripts, subagents with jobs, and shells and opens th
         get: (id: string) => sessions[id],
         cost: () => 0,
         message: { list: () => [] },
+        goal: { get: () => undefined },
       },
       job: {
         list: () => [
